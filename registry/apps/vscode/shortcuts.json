@@ -10,7 +10,7 @@
       ],
       "platforms": ["macos", "windows", "linux"],
       "app_versions": ["1.85+"],
-      "method": "shortcut",
+      "method": "search",
       "actions": [
         { "type": "key_combo", "keys": { "macos": "cmd+p", "windows": "ctrl+p", "linux": "ctrl+p" } },
         { "type": "type_text", "text": "{filename}" },

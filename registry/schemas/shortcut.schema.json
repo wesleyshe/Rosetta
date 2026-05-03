@@ -54,7 +54,7 @@
         "parameters": {
           "type": "array",
           "items": { "$ref": "#/$defs/parameter" },
-          "description": "Inputs the agent must supply at execution time. May be empty."
+          "description": "Typed inputs the caller supplies at execution time. Substituted into action templates AND verification placeholders. May be empty."
         },
         "platforms": {
           "type": "array",

@@ -113,6 +113,21 @@ Verification is what turns a sequence of actions into a checkable claim. Pick th
 
 If you have no clean way to verify, the shortcut is too fragile to ship — find a different action sequence. Skills with weak verifications generate noisy reliability stats and get downranked in lookups.
 
+## Picking the verification type
+
+Each shortcut must declare one verification. Pick the type that most reliably proves the intended outcome happened.
+
+- **`ax_tree_assertion`** — the shortcut produces a clean change in the accessibility tree. Two sub-patterns:
+  - **Current-state assertion**: rule names like `command_palette_visible` or `active_editor_filename_contains`. `verify()` checks the post-action AX tree against the rule once.
+  - **Stateful (toggle / change) assertion**: rule names ending in `_toggled` or `_changed` (e.g. `sidebar_visibility_toggled`). `verify()` must capture an AX snapshot BEFORE the action, run the action, then snapshot AFTER and compare. Use stateful rules only when the post-state alone is ambiguous (e.g., a toggle whose direction depends on prior state).
+- **`file_check`** — the shortcut produces a filesystem effect. Cleanest for save / export / write operations. Three flavors: `exists` (file present after action), `content_contains` (post-action content includes a string), `hash` (post-action sha256 matches). The `path` may use `{parameter}` placeholders.
+- **`screenshot_diff`** — the shortcut visibly changes a region but the change isn't well-captured by AX. Currently expresses only `max_pixel_diff_ratio` ("verify nothing changed beyond N% of pixels"). The inverse direction ("verify something DID change") is parking-lot item 12; until then, use `interpret_check` for "verify a visible toggle happened."
+- **`value_compare`** — compare two values directly (e.g., a captured AX-node value against an expected string). String values support `{parameter}` placeholders.
+- **`interpret_check`** — pass post-action media (screenshot, audio) to a vision/audio model with a question; check the answer against an expected fragment. Use when the visible effect is real but AX doesn't capture it (e.g., zen mode hides chrome visually while the AX-tree presence barely changes), or when the change is too subtle/contextual for a deterministic rule.
+- **`dom_assertion`** — for browser / web targets. Out of scope for the VS Code seed; will appear in browser-app shortcuts later.
+
+Rule of thumb: prefer `ax_tree_assertion` or `file_check` when either fits. Fall back to `interpret_check` only when AX and filesystem can't capture the effect. `screenshot_diff` in v0 is best avoided unless the `max_pixel_diff_ratio` semantic actually matches the test you want.
+
 ## Method choice
 
 The `method` field is a coarse classification:
@@ -125,11 +140,27 @@ The `method` field is a coarse classification:
 
 Multiple methods can share the same intent. **Don't deduplicate** — let the live `reliability_score` decide which the agent actually uses. See `docs/design-rationale.md` § "Why one workflow per app, with searchable shortcuts."
 
-## Placeholders
+## Picking the method field
 
-Any string field in `actions[]` (`type_text.text`, `key_combo.keys` strings, `menu.path[]`) or `verification` (`ax_tree_assertion.value`, `file_check.path`, `value_compare.left/right`, `interpret_check.expected`) can contain `{parameter_name}` placeholders that the MCP substitutes from the agent's input.
+Any shortcut whose dispatch passes through a search / fuzzy-match surface — command palette, Quick Open, an in-app search bar — is `method: "search"`, regardless of the keybind that opens that surface. `method: "shortcut"` is reserved for true raw keybinds that invoke an action directly without going through a search UI. The presence of a `type_text` action between a `key_combo` and an enter keystroke is the strongest signal that you should classify as `"search"`.
 
-Every placeholder must correspond to a declared parameter in the same shortcut. The validator catches typos like `{filename}` when the parameter is named `file_path`.
+Examples:
+
+- `method: "shortcut"` — `cmd+s` to save, `F2` to rename, `cmd+b` to toggle sidebar.
+- `method: "search"` — `cmd+shift+p`, "Format Document", enter; `cmd+p`, `{filename}`, enter (Quick Open); any flow whose middle step is a `type_text` into a fuzzy-match input.
+
+The reason this matters: the ranking heuristic prefers search-first methods because they survive UI redesigns better than raw keybinds. Misclassifying a search flow as `"shortcut"` hides it from that preference and degrades ranking quality.
+
+## Parameters: action substitution AND verification placeholders
+
+A shortcut's `parameters[]` block declares typed inputs the caller must supply. Those values are substituted at execution time into:
+
+- **Action templates**: `type_text.text`, `key_combo.keys` (string form), `menu.path[]` items.
+- **Verification placeholders**: `ax_tree_assertion.value`, `file_check.path`, `value_compare.left` and `right` (string values), `interpret_check.expected`.
+
+A parameter may be used by the action only, by the verification only, or by both. `save-current-file` is an example of a verification-only parameter: `cmd+s` saves the active file regardless of path, but the `file_check` verification needs the path to know where to look on disk.
+
+Every `{placeholder}` that appears anywhere in actions or verification must be declared in `parameters[]`. The `validate-registry` script enforces this (the "Parameter placeholder coverage" check). Catches typos like `{filename}` when the parameter is named `file_path`.
 
 ## Validating before submission
 

@@ -142,3 +142,21 @@ Deferred items. Each entry: what it is, why it's deferred, what would trigger us
 **Placeholder behavior:** Phase 2 will produce vanilla HTML/CSS that's functional but undesigned. Reliability scores will be rendered as plain numbers. Shortcuts will list in document order. Mobile behavior will be whatever vanilla HTML gives you. Acceptable for internal review and for showing to a small audience; not acceptable for soft launch.
 
 **When picked up, write:** `docs/site-design.md` (50-100 lines) covering landing-page goal, visual anchor, per-app-page layout decisions, copy tone. Then revisit Phase 2's substeps and add design-implementation tasks. Don't drag into Figma-mockup-iteration territory; the goal is "intentional," not "designed-by-committee."
+
+---
+
+## 12. screenshot_diff semantic is one-directional
+
+**What:** The `screenshot_diff` verification type currently expresses only `max_pixel_diff_ratio` — "verify nothing changed beyond N% of pixels." The inverse direction ("verify something DID change") and region-aware change assertions ("verify the sidebar region changed but the editor region did not") cannot be expressed.
+
+**Why deferred:** Phase 1 doesn't have a concrete `verify()` implementation yet, so designing the right schema extension is premature. The seed shortcuts that needed an inverse-direction check (`toggle-zen-mode`, `format-current-file`) use `interpret_check` instead, which delegates to a vision model.
+
+**Trigger to pick up:** During Phase 4, when `verify()` is being implemented and there's real usage to inform the design. Or when a contributor submits a shortcut where `interpret_check` feels like the wrong tool and `screenshot_diff` with new semantics would fit cleanly.
+
+**Placeholder behavior:** Use `interpret_check` for "verify a visible toggle happened" cases. `screenshot_diff` in v0 is functionally limited to "verify nothing visually changed."
+
+**Options to consider when picked up:**
+- Add `min_pixel_diff_ratio` (the inverse of the current field): "verify at least N% of pixels changed."
+- Add a `direction` enum: `"no_change" | "any_change" | "exact_match"` against a reference image hash.
+- Add region-aware assertions: a `regions: [...]` array where each region has its own expected change behavior.
+- Drop `screenshot_diff` entirely if `interpret_check` turns out to cover the same use cases more reliably in practice.
