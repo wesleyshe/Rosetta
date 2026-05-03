@@ -180,6 +180,36 @@ The generic execution harness for the app. One per app.
 }
 ```
 
+**Optional `pre_step` (Phase 7a, 2026-05-03 — universal GUI-app-control infrastructure):** complex GUI apps (Photoshop, AutoCAD, Figma, Excel) often surface unexpected modals (unsaved-changes prompts, format warnings, registration popups) that derail an otherwise-correct shortcut. The optional `pre_step` array runs before each shortcut's main `actions` to dismiss any visible modal. Empty/absent for apps with clean session-start (VS Code).
+
+```json
+{
+  "schema_version": 1,
+  "app_id": "photoshop",
+  "open": [
+    { "type": "open_app", "platform_specific": true }
+  ],
+  "default_dispatch_strategy": [
+    "shortcut_lookup",
+    "menu_navigation",
+    "vision_fallback"
+  ],
+  "verification_default": "interpret_check",
+  "failure_recovery": [
+    "retry_same_shortcut_once",
+    "wait_for_idle",
+    "fallback_to_alternative_method",
+    "escalate_to_explorer",
+    "surface_to_user"
+  ],
+  "pre_step": [
+    { "type": "key", "key": "escape" }
+  ]
+}
+```
+
+The `wait_for_idle` step in `failure_recovery` (also added Phase 7a) is appropriate for apps with loading states — re-attempt verify after the app finishes its current operation. See the `wait_for_idle` verification type below.
+
 ### `registry/apps/{app_id}/shortcuts.json`
 
 Array of atomic operations. Multiple entries per intent are allowed; agent picks based on metadata.
@@ -225,6 +255,42 @@ Array of atomic operations. Multiple entries per intent are allowed; agent picks
 
 The shortcut JSON only stores **immutable, contributor-declared** fields. Runtime stats (`use_count`, `success_rate`, `reliability_score`, `last_validated`) live in the backend Postgres database and are merged into the response by `registry.lookup`. This keeps the Git history clean (one commit per spec change, not per execution) and lets reliability data update in real time without churning the repo.
 
+**Optional `produces` on a shortcut and `consumes` on a parameter (Phase 7a, 2026-05-03 — universal GUI-app-control infrastructure, parking-lot 4 partial activation):** complex chains pass state between steps (the user says "crop to the red girl, then color-shift the dress, then export") and the chat LLM benefits from a structured cue about what each step emits. `produces` declares an output (`{ type, key }`); `consumes` on a downstream parameter declares "fill this from `from_id`'s `key`." Schema-only in v0; the chat LLM is the interpreter. Type-checking and runtime validation stay parked.
+
+```json
+{
+  "id": "crop-to-region",
+  "intent": "Crop the canvas to a rectangular region",
+  "parameters": [
+    { "name": "x", "type": "number", "required": true },
+    { "name": "y", "type": "number", "required": true },
+    { "name": "width", "type": "number", "required": true },
+    { "name": "height", "type": "number", "required": true }
+  ],
+  "produces": { "type": "region", "key": "crop_box" },
+  "actions": [ /* ... */ ],
+  "verification": { /* ... */ },
+  "metadata": { /* ... */ }
+}
+```
+
+A downstream shortcut can then declare a parameter as consuming that output:
+
+```json
+{
+  "id": "fill-region-with-color",
+  "parameters": [
+    {
+      "name": "region",
+      "type": "string",
+      "required": true,
+      "consumes": { "from_id": "crop-to-region", "key": "crop_box" }
+    },
+    { "name": "color", "type": "string", "required": true }
+  ]
+}
+```
+
 ## MCP server: tool surface
 
 All tools live under one MCP server. TypeScript, packaged for `npx @rosetta-skills/mcp` install (final npm name TBD).
@@ -261,6 +327,7 @@ All tools live under one MCP server. TypeScript, packaged for `npx @rosetta-skil
   - `file_check` — file exists, hash matches, content matches
   - `value_compare` — compare two strings/numbers
   - `interpret_check` — pass to `interpret()` and check the answer
+  - `wait_for_idle` — poll responsiveness until the frontmost app is idle, or fail with `wait_for_idle_timeout` after `max_seconds`. Universal primitive added Phase 7a (2026-05-03) for apps with loading states (Photoshop filters / saves, AutoCAD renders, Excel heavy recalcs, Figma exports). Spec: `{ type: "wait_for_idle", max_seconds: number, idle_seconds?: number }`. Default `idle_seconds = 1`. Implementation polls a lightweight osascript probe every `idle_seconds`; the probe IS the rate limiter (each probe runs with that interval as its timeout). macOS-only in v0; Windows/Linux return `wait_for_idle_not_implemented`.
 
 ### Interpretation tool
 
@@ -446,10 +513,13 @@ When verification fails inside a workflow, the chat LLM (host) is the orchestrat
 Standard recovery list (from least to most expensive):
 
 1. Retry same shortcut once (transient OS hiccups, focus issues)
-2. Try next-ranked shortcut for the same intent
-3. Open command palette / search bar and try natural-language search if the app supports it
-4. Vision-based discovery: screenshot, reason about the UI, propose actions
-5. Surface to user with a structured question
+2. `wait_for_idle` and re-verify (added Phase 7a) — when the app might still be processing the previous action; common for Photoshop saves, AutoCAD renders, etc.
+3. Try next-ranked shortcut for the same intent
+4. Open command palette / search bar and try natural-language search if the app supports it
+5. Vision-based discovery: screenshot, reason about the UI, propose actions
+6. Surface to user with a structured question
+
+The schema enum is the source of truth for which steps an app supports; the prose order above is the typical ordering. Apps without loading states (VS Code) omit the `wait_for_idle` step.
 
 ## Versioning and platform fan-out
 
@@ -571,3 +641,4 @@ Aggregation rules:
 - **TypeScript for the MCP and the backend:** ergonomic `npx` install on the MCP side, shared language with the backend, MCP SDK is mature in TS, Prisma plays well with TS.
 - **Static site, no framework:** minimal surface, no build complexity, ages well.
 - **Search-first interaction model:** many modern apps have a command palette (VS Code, Linear, Notion, Obsidian, Cursor). When available, this dramatically reduces skill rot.
+- **Phase 7a additions are universal GUI-app-control infrastructure (2026-05-03):** `wait_for_idle`, `pre_step` modal dismissal, and minimal `produces`/`consumes` composition were authored in response to Photoshop's complexity but apply to every app with loading states (Excel, Figma, AutoCAD), surprise modals (any app with auth or unsaved-changes prompts), and chained operations. Photoshop is the first user, not the only one. Existing VS Code seed validates unchanged because the new fields are all optional. See `docs/design-rationale.md` § "Why the Phase 7a schema extensions are universal infrastructure" for the full framing.

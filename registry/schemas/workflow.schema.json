@@ -61,6 +61,7 @@
         "type": "string",
         "enum": [
           "retry_same_shortcut_once",
+          "wait_for_idle",
           "fallback_to_alternative_method",
           "escalate_to_explorer",
           "surface_to_user"
@@ -68,7 +69,12 @@
       },
       "minItems": 1,
       "uniqueItems": true,
-      "description": "Ordered list, least to most expensive. The chat LLM applies judgment within this menu when verification fails (see docs/architecture.md § Failure recovery flow)."
+      "description": "Ordered list, least to most expensive. The chat LLM applies judgment within this menu when verification fails (see docs/architecture.md § Failure recovery flow). The `wait_for_idle` step (added Phase 7a, 2026-05-03) is appropriate for apps with loading states — re-attempt verify after the app finishes its current operation."
+    },
+    "pre_step": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/action" },
+      "description": "Universal GUI-app-control primitive (Phase 7a, 2026-05-03). Optional. Action sequence executed before each shortcut's main `actions`. Used for known-modal dismissal (e.g. press escape, then click cancel-button if visible). Empty/absent for apps with clean session-start (VS Code). Used by Photoshop, AutoCAD, Figma, and other complex GUI apps where surprise modals (unsaved-changes prompts, format warnings, registration popups) are common. Read by the chat LLM when planning a shortcut execution; not enforced by the harness in v0."
     }
   },
 

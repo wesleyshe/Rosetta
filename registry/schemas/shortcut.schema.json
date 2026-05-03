@@ -85,7 +85,27 @@
           "default": "safe",
           "description": "Parking-lot item 3: optional risk classification. Use seed skill should pause for confirmation on non-safe values (informal in v0)."
         },
+        "produces": { "$ref": "#/$defs/produces" },
         "metadata": { "$ref": "#/$defs/metadata" }
+      }
+    },
+
+    "produces": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "key"],
+      "description": "Parking-lot item 4 (PARTIALLY ACTIVATED 2026-05-03). Optional. Declares that this shortcut emits a named value downstream shortcuts may consume via parameter.consumes. Schema-only in v0; runtime resolution is the chat LLM's responsibility. Type-checking and harness-side validation stay parked.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Free-text type tag, e.g. \"selection\", \"file_path\", \"region\", \"layer_id\". Not enumerated; conventions emerge from contributor practice."
+        },
+        "key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "snake_case identifier referenced by consumes.key on a downstream shortcut's parameter."
+        }
       }
     },
 
@@ -106,6 +126,26 @@
         "required": {
           "type": "boolean",
           "default": false
+        },
+        "consumes": { "$ref": "#/$defs/consumes" }
+      }
+    },
+
+    "consumes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from_id", "key"],
+      "description": "Parking-lot item 4 (PARTIALLY ACTIVATED 2026-05-03). Optional. Declares that this parameter's value should come from a previously-executed shortcut's `produces` output. Schema-only in v0; the chat LLM is the interpreter. Runtime resolution of from_id and type-checking against the producer's `produces.type` stay parked.",
+      "properties": {
+        "from_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
+          "description": "Shortcut id whose `produces` block emits the value. Must reference a shortcut in the same app (cross-app composition is parked)."
+        },
+        "key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Must match the `key` declared on the producing shortcut's `produces` block."
         }
       }
     },
@@ -275,7 +315,8 @@
         { "$ref": "#/$defs/screenshotDiff" },
         { "$ref": "#/$defs/fileCheck" },
         { "$ref": "#/$defs/valueCompare" },
-        { "$ref": "#/$defs/interpretCheck" }
+        { "$ref": "#/$defs/interpretCheck" },
+        { "$ref": "#/$defs/waitForIdle" }
       ]
     },
     "axTreeAssertion": {
@@ -380,6 +421,26 @@
           "type": "string",
           "minLength": 1,
           "description": "Expected answer fragment. Match is case-insensitive substring in v0."
+        }
+      }
+    },
+    "waitForIdle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "max_seconds"],
+      "description": "Universal GUI-app-control primitive (Phase 7a, 2026-05-03). Verifies that the frontmost app has finished a long-running operation by polling for responsiveness. Designed for apps with loading states (Photoshop filters / saves, AutoCAD renders, Excel heavy recalcs, Figma exports). Implementation in mcp/src/verify.ts: polls a lightweight osascript probe every `idle_seconds` (each probe with that interval as its timeout); returns passed:true on the first responsive probe, passed:false with error_class \"wait_for_idle_timeout\" when total wall-clock exceeds `max_seconds`.",
+      "properties": {
+        "type": { "const": "wait_for_idle" },
+        "max_seconds": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Maximum wall-clock seconds to wait for the frontmost app to become responsive. Pick generously: a Photoshop save of a 100MB PSD can take 20+ seconds."
+        },
+        "idle_seconds": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 1,
+          "description": "Polling interval in seconds. Also used as the per-probe osascript timeout: a probe that returns within this window means the app is responsive. Defaults to 1."
         }
       }
     }

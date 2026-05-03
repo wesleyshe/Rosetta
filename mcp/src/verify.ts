@@ -10,9 +10,14 @@
 
 import { readFileSync, existsSync, statSync } from "node:fs";
 import { createHash } from "node:crypto";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 
 import { readAxTree, screenshot, type AxResult, type ScreenshotResult } from "./os.js";
 import { interpret } from "./interpret.js";
+import { currentPlatform } from "./config.js";
+
+const execFileAsync = promisify(execFile);
 
 // ---------- types ----------
 
@@ -37,7 +42,8 @@ export type VerificationSpec =
       right: unknown;
       comparator?: "equals" | "contains" | "starts_with" | "ends_with";
     }
-  | { type: "interpret_check"; question: string; expected: string };
+  | { type: "interpret_check"; question: string; expected: string }
+  | { type: "wait_for_idle"; max_seconds: number; idle_seconds?: number };
 
 export interface VerifyOptions {
   /** Substituted into string fields with `{name}` placeholders. */
@@ -68,6 +74,8 @@ export interface VerificationResult {
     | "interpret_mismatch"
     | "interpret_failed"
     | "dom_not_implemented"
+    | "wait_for_idle_timeout"
+    | "wait_for_idle_not_implemented"
     | "unknown_verification_type"
     | "unknown_comparator";
   /** Diagnostic data: what we observed, what we expected. */
@@ -98,6 +106,8 @@ export async function verify(
       return verifyValueCompare(spec, options);
     case "interpret_check":
       return await verifyInterpret(spec, options);
+    case "wait_for_idle":
+      return await verifyWaitForIdle(spec);
     default: {
       // Exhaustiveness check.
       const _exhaustive: never = spec;
@@ -411,5 +421,94 @@ async function verifyInterpret(
     passed: matched,
     error_class: matched ? undefined : "interpret_mismatch",
     observation: { question, expected, answer, provider, model },
+  };
+}
+
+// ---------- wait_for_idle (Phase 7a, universal GUI-app-control primitive) ----------
+//
+// Verifies that the frontmost app has finished a long-running operation by
+// polling for responsiveness. Designed for apps with loading states
+// (Photoshop filters / saves, AutoCAD renders, Excel heavy recalcs, Figma
+// exports). On macOS, the probe asks System Events for the frontmost
+// process's front-window name; System Events delegates that query to the
+// app, so a busy app blocks the probe until osascript times out. A probe
+// that returns within `idle_seconds` means the app is responsive.
+//
+// Implementation contract (Phase 7a kickoff decision B): poll every
+// `idle_seconds`; return passed:true on the first responsive probe; on
+// total wall-clock overrun (`max_seconds`), return passed:false with
+// error_class "wait_for_idle_timeout".
+
+async function probeFrontmostResponsive(timeoutMs: number): Promise<boolean> {
+  if (currentPlatform() !== "macos") return false;
+  // Asking for the front window's name forces System Events to round-trip
+  // through the frontmost app's own AX layer — a busy app blocks here.
+  const script = `
+    tell application "System Events"
+      try
+        set frontProc to (first application process whose frontmost is true)
+        return name of front window of frontProc
+      on error
+        return "ROSETTA_NO_FRONT_WINDOW"
+      end try
+    end tell
+  `;
+  try {
+    await execFileAsync("osascript", ["-e", script], { timeout: timeoutMs });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function verifyWaitForIdle(
+  spec: Extract<VerificationSpec, { type: "wait_for_idle" }>
+): Promise<VerificationResult> {
+  if (currentPlatform() !== "macos") {
+    return {
+      passed: false,
+      error_class: "wait_for_idle_not_implemented",
+      message:
+        `wait_for_idle is macOS-only in v0; ${currentPlatform()} support lands with the cross-platform polish (Phase 7b+).`,
+    };
+  }
+  const maxMs = spec.max_seconds * 1000;
+  const intervalMs = (spec.idle_seconds ?? 1) * 1000;
+  const start = Date.now();
+
+  let probes = 0;
+  while (Date.now() - start < maxMs) {
+    probes++;
+    const probeStart = Date.now();
+    const responsive = await probeFrontmostResponsive(intervalMs);
+    const probeMs = Date.now() - probeStart;
+    if (responsive) {
+      return {
+        passed: true,
+        observation: {
+          elapsed_ms: Date.now() - start,
+          probe_count: probes,
+          probe_ms: probeMs,
+          idle_seconds: intervalMs / 1000,
+        },
+      };
+    }
+    // Probe failed/timed out. If it returned faster than intervalMs (rare
+    // error path), pad to intervalMs so we don't busy-wait. The probe is
+    // otherwise the rate limiter.
+    if (probeMs < intervalMs) {
+      await new Promise((resolve) => setTimeout(resolve, intervalMs - probeMs));
+    }
+  }
+  return {
+    passed: false,
+    error_class: "wait_for_idle_timeout",
+    observation: {
+      elapsed_ms: Date.now() - start,
+      probe_count: probes,
+      max_ms: maxMs,
+      idle_seconds: intervalMs / 1000,
+    },
+    message: `app did not become idle within ${spec.max_seconds}s (${probes} probes, all timed out)`,
   };
 }
