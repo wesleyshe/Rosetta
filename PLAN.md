@@ -27,21 +27,21 @@ Status markers: `[ ]` not started, `[~]` in progress, `[x]` done, `[!]` blocked.
 
 **Goal:** Schema is defined, validated, and one real app has hand-written entries that exercise the full schema.
 
-- [~] Write JSON schemas: `registry/schemas/workflow.schema.json`, `registry/schemas/shortcut.schema.json`, `registry/schemas/meta.schema.json`
+- [x] Write JSON schemas: `registry/schemas/workflow.schema.json`, `registry/schemas/shortcut.schema.json`, `registry/schemas/meta.schema.json`
    - **Note (post-pivot):** `shortcut.schema.json` does NOT include runtime metadata fields (`use_count`, `success_rate`, `reliability_score`, `last_validated`). Those live in the Postgres `ShortcutStats` table, not the JSON. The JSON `metadata` block only covers contributor-declared static fields: `contributor_id`, `payment_destination`, `token_cost_estimate`, `speed_estimate_ms`, `submitted_at`.
    - **Note (final lock-in):** `meta.schema.json` includes a required `agent_primer` field (markdown string) carrying app terminology and element layout. The backend's `skill.md` generator reads this verbatim.
-- [ ] Pick first app: **VS Code recommended** (cleanest test of search-first interaction model)
-- [ ] Write `registry/apps/vscode/meta.json`
-- [ ] Write `registry/apps/vscode/workflow.json` (the generic execution harness for VS Code)
-- [ ] Write `registry/apps/vscode/shortcuts.json` with 5-10 hand-curated shortcuts (open file, search files, run command from palette, format file, toggle sidebar, etc.)
-- [ ] Add `registry/index.json` listing all apps
-- [ ] Set up `ajv` validation script: `npm run validate-registry`
+- [x] Pick first app: **VS Code recommended** (cleanest test of search-first interaction model)
+- [x] Write `registry/apps/vscode/meta.json`
+- [x] Write `registry/apps/vscode/workflow.json` (the generic execution harness for VS Code)
+- [x] Write `registry/apps/vscode/shortcuts.json` with 5-10 hand-curated shortcuts (open file, search files, run command from palette, format file, toggle sidebar, etc.)
+- [x] Add `registry/index.json` listing all apps
+- [x] Set up `ajv` validation script: `npm run validate-registry`
    - **Extra checks the script must perform** (JSON Schema can't enforce these on its own):
      - **Shortcut id uniqueness** within each `shortcuts.json` (deep-equality check across the array).
      - **Cross-file consistency:** `meta.id` must equal the folder name under `registry/apps/`, and equal `workflow.app_id`, and equal `shortcuts.app_id`.
      - **Action-schema duplication in sync:** the action `$defs` (`keyAction`, `keyComboAction`, `typeTextAction`, `clickAction`, `menuAction`, `openAppAction`) in `workflow.schema.json` must be byte-identical to those in `shortcut.schema.json` (sort keys, normalize whitespace, then compare).
      - **Parameter placeholder coverage:** every `{placeholder}` that appears in a shortcut's action templates (`type_text.text`, `key_combo.keys` strings, `menu.path` items) or verification value placeholders (`ax_tree_assertion.value`, `file_check.path`, `value_compare.left/right`, `interpret_check.expected`) must be declared in that shortcut's `parameters[]` array. Catches typos like `{filename}` when the param is named `file_path`.
-- [ ] Write `docs/skills.md` explaining how to author a skill
+- [x] Write `docs/skills.md` explaining how to author a skill
 
 **Estimate:** 3-5 hours.
 

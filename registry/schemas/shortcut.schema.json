@@ -258,9 +258,13 @@
         "type": { "const": "open_app" },
         "app_id": {
           "type": "string",
-          "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$"
+          "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
+          "description": "Explicit app_id form (used in shortcut.actions[])."
         },
-        "platform_specific": { "type": "boolean" }
+        "platform_specific": {
+          "type": "boolean",
+          "description": "Workflow.open[] form: signals the MCP to use the app's detection block to launch."
+        }
       }
     },
 
