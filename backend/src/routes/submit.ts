@@ -51,20 +51,26 @@ interface SubmitBody {
   shortcut_spec?: unknown;
 }
 
-let validateShortcutSpec: ((data: unknown) => boolean) & { errors?: unknown[] | null };
+type ValidateFn = ((data: unknown) => boolean) & { errors?: unknown[] | null };
 
-function loadValidator(): ((data: unknown) => boolean) & { errors?: unknown[] | null } {
+let validateShortcutSpec: ValidateFn | undefined;
+
+function loadValidator(): ValidateFn {
   if (validateShortcutSpec) return validateShortcutSpec;
   // Load registry schemas from disk; do NOT duplicate them in code (decision H).
+  // The file's root schema describes a whole shortcuts.json file
+  // ({schema_version, app_id, shortcuts: [...]}); the per-entry schema lives
+  // at $defs.shortcut and is what /submit's `shortcut_spec` body field must
+  // satisfy. Add the whole document so $ref resolution still works, then
+  // pull the sub-schema validator out by ref.
   const ajv = new Ajv2020({ strict: true, strictRequired: false, allErrors: true });
   addFormats(ajv);
-  // shortcut.schema.json references the same `actions` $defs that the
-  // workflow schema does, but ajv only needs the schema we're validating
-  // against here — shortcut.schema.json is self-contained for the spec
-  // validation surface used by /submit.
   const schemaPath = join(REGISTRY_SCHEMAS_DIR, "shortcut.schema.json");
-  const schema = JSON.parse(readFileSync(schemaPath, "utf8"));
-  validateShortcutSpec = ajv.compile(schema) as typeof validateShortcutSpec;
+  const wholeSchema = JSON.parse(readFileSync(schemaPath, "utf8")) as Record<string, unknown>;
+  ajv.addSchema(wholeSchema, "shortcut.schema.json");
+  const sub = ajv.getSchema("shortcut.schema.json#/$defs/shortcut");
+  if (!sub) throw new Error("failed to compile shortcut.schema.json#/$defs/shortcut");
+  validateShortcutSpec = sub as ValidateFn;
   return validateShortcutSpec;
 }
 
@@ -74,7 +80,13 @@ export async function submitRoute(app: FastifyInstance): Promise<void> {
     const app_id = typeof body.app_id === "string" ? body.app_id : "";
     const shortcut_spec = body.shortcut_spec;
 
-    if (!app_id || !shortcut_spec || typeof shortcut_spec !== "object" || Array.isArray(shortcut_spec)) {
+    if (
+      !app_id ||
+      shortcut_spec === null ||
+      shortcut_spec === undefined ||
+      typeof shortcut_spec !== "object" ||
+      Array.isArray(shortcut_spec)
+    ) {
       return reply.code(400).send({
         error: "invalid body",
         detail: "expected { app_id: string, shortcut_spec: object }",
