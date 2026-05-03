@@ -16,7 +16,7 @@ Status markers: `[ ]` not started, `[~]` in progress, `[x]` done, `[!]` blocked.
 - [x] `LICENSE` file (MIT)
 - [x] `.gitignore` (Node, OS noise, build artifacts)
 - [x] Create `registry/`, `mcp/`, `site/`, `worker/` top-level folders
-- [ ] Create GitHub repo and push
+- [x] Create GitHub repo and push
 
 **Estimate:** 30-60 min.
 
