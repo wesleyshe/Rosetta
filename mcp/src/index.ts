@@ -1,13 +1,14 @@
 #!/usr/bin/env node
-// rosetta-mcp entry point (Phase 5).
+// rosetta-mcp entry point (Phase 6a).
 //
-// Thirteen tools, all wired in:
-//   Registry (Phase 3 + 5 stub): registry_list_apps, registry_lookup,
-//                                registry_report_execution, os_app_info
+// Fourteen tools, all wired in:
+//   Registry (Phase 3 + 5 + 6a):  registry_list_apps, registry_lookup,
+//                                 registry_report_execution, registry_submit,
+//                                 os_app_info
 //   Computer control (Phase 4 Part 1): os_screenshot, os_action, os_read_ax_tree
-//   Verification (Phase 4 Part 1): verify, interpret
-//   Explore session (Phase 4 Part 2): explore_start_session, explore_save_finding,
-//                                     explore_budget_status, explore_submit_findings
+//   Verification (Phase 4 Part 1):     verify, interpret
+//   Explore session (Phase 4 Part 2):  explore_start_session, explore_save_finding,
+//                                      explore_budget_status, explore_submit_findings
 //
 // Naming: docs and seed skills refer to these as registry.list_apps, os.action,
 // explore.start_session, etc. (with dots). MCP clients vary in tolerance for dots
@@ -21,7 +22,7 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 
-import { listApps, lookup, reportExecution } from "./registry.js";
+import { listApps, lookup, reportExecution, submitSpec } from "./registry.js";
 import {
   appInfo,
   screenshot,
@@ -93,6 +94,28 @@ const tools = [
     },
   },
 
+  {
+    name: "registry_submit",
+    description:
+      "Submit a single shortcut spec to the registry. Real backend POST when ROSETTA_BACKEND_URL is set (the backend runs the prompt-injection reviewer and auto-merges a PR via the contributor's GitHub OAuth token); DRY-RUN when unset (returns `https://github.com/wesleyshe/Rosetta/pull/dryrun-{cuid}` URLs). Returns `{pr_url, commit_sha, dry_run}`. The contributor's GitHub OAuth token is read from `ROSETTA_GITHUB_TOKEN` by default; pass `contributor_token` explicitly if your flow has it in-hand. (Conceptually `registry.submit`.)",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        app_id: { type: "string", description: 'App identifier (e.g. "vscode"). Must match an existing folder under registry/apps/ — new-app submissions are out of scope for v0.' },
+        shortcut_spec: {
+          type: "object",
+          description: "Full shortcut spec (matches registry/schemas/shortcut.schema.json). Must include `id`.",
+          additionalProperties: true,
+        },
+        contributor_token: {
+          type: "string",
+          description: "Optional. GitHub OAuth token for the submitting contributor. If absent, falls back to ROSETTA_GITHUB_TOKEN env.",
+        },
+      },
+      required: ["app_id", "shortcut_spec"],
+      additionalProperties: false,
+    },
+  },
   {
     name: "registry_report_execution",
     description:
@@ -388,6 +411,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (!app_id) throw new Error("registry_lookup: app_id is required");
         const shortcuts = await lookup(app_id, intent, platform, app_version);
         result = { shortcuts };
+        break;
+      }
+      case "registry_submit": {
+        result = await submitSpec({
+          app_id: String(args.app_id ?? ""),
+          shortcut_spec: (args.shortcut_spec ?? {}) as Record<string, unknown>,
+          contributor_token: typeof args.contributor_token === "string" ? args.contributor_token : undefined,
+        });
         break;
       }
       case "registry_report_execution": {

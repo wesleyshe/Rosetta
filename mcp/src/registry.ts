@@ -282,3 +282,85 @@ export async function reportExecution(
   );
   return { ok: true, dry_run: true };
 }
+
+// ---------- submit (Phase 6a) ----------
+//
+// Shared submitter used by the registry_submit MCP tool AND by
+// explore.submit_findings. Real backend POST when ROSETTA_BACKEND_URL is
+// set, dry-run fallback otherwise (matches the report_execution stub
+// shape so the rest of the agent doesn't have to special-case offline
+// mode).
+//
+// Auth: when calling the real backend, the contributor's GitHub OAuth
+// token must be passed via ROSETTA_GITHUB_TOKEN (or via the input param
+// for explore-skill flows that have it in-hand). The backend verifies
+// the token's sha256 matches a Contributor row.
+
+import { randomBytes } from "node:crypto";
+
+export interface SubmitInput {
+  app_id: string;
+  shortcut_spec: Record<string, unknown>;
+  /** Optional override; otherwise read from ROSETTA_GITHUB_TOKEN. */
+  contributor_token?: string;
+}
+
+export interface SubmitOutput {
+  pr_url: string;
+  commit_sha: string | null;
+  /** True when ROSETTA_BACKEND_URL is unset and submission ran in dry-run mode. */
+  dry_run: boolean;
+}
+
+// TODO Phase 6a → 6b transition: when real submissions land, the explore
+// skill should pass the contributor_token explicitly (the explore skill
+// already requires GitHub auth, so the token is in-hand at that layer).
+// Until then, ROSETTA_GITHUB_TOKEN env is the simpler path for direct
+// MCP-tool invocations.
+export async function submitSpec(input: SubmitInput): Promise<SubmitOutput> {
+  if (!input.app_id) throw new Error("registry.submit: app_id is required");
+  if (!input.shortcut_spec || typeof input.shortcut_spec !== "object") {
+    throw new Error("registry.submit: shortcut_spec must be an object");
+  }
+  const sid = input.shortcut_spec.id;
+  if (typeof sid !== "string" || sid.length === 0) {
+    throw new Error("registry.submit: shortcut_spec.id is required");
+  }
+
+  const url = backendUrl();
+  if (url) {
+    const token = input.contributor_token ?? process.env.ROSETTA_GITHUB_TOKEN;
+    if (!token) {
+      throw new Error(
+        "registry.submit: ROSETTA_GITHUB_TOKEN is required when ROSETTA_BACKEND_URL is set " +
+          "(or pass contributor_token in the call)"
+      );
+    }
+    const r = await fetch(`${url}/submit`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ app_id: input.app_id, shortcut_spec: input.shortcut_spec }),
+    });
+    if (!r.ok) {
+      const text = (await r.text()).slice(0, 500);
+      throw new Error(`backend POST ${url}/submit returned HTTP ${r.status}: ${text}`);
+    }
+    const data = (await r.json()) as { pr_url?: string; commit_sha?: string | null };
+    if (!data.pr_url) throw new Error("backend response missing pr_url");
+    return { pr_url: data.pr_url, commit_sha: data.commit_sha ?? null, dry_run: false };
+  }
+
+  // Dry-run mode (kickoff decision G from Phase 4).
+  const cuid = randomBytes(8).toString("hex");
+  const fakeUrl = `https://github.com/wesleyshe/Rosetta/pull/dryrun-${cuid}`;
+  const intent = typeof input.shortcut_spec.intent === "string" ? input.shortcut_spec.intent : "?";
+  process.stderr.write(
+    `\n[rosetta-mcp DRY RUN] registry.submit: ROSETTA_BACKEND_URL is unset. ` +
+      `Skipping real submission for shortcut "${sid}" (app: "${input.app_id}", intent: "${intent}"). ` +
+      `Returning fake PR URL: ${fakeUrl}\n`
+  );
+  return { pr_url: fakeUrl, commit_sha: null, dry_run: true };
+}

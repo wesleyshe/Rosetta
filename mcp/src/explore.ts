@@ -13,9 +13,9 @@
 
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { randomBytes } from "node:crypto";
 
 import { backendUrl, configDir } from "./config.js";
+import { submitSpec } from "./registry.js";
 
 const SCHEMA_VERSION = 1;
 const DEFAULT_BUDGET_MINUTES = 30;
@@ -333,14 +333,17 @@ export async function submitFindings(input: SubmitFindingsInput): Promise<Submit
   const results: SubmitFindingsResult[] = [];
   for (const f of candidates) {
     try {
-      const sub = await submitToBackend(f.shortcut_spec);
+      const sub = await submitSpec({
+        app_id: input.app_id,
+        shortcut_spec: f.shortcut_spec,
+      });
       f.submitted_at = new Date().toISOString();
       f.submission_pr_url = sub.pr_url;
-      f.submission_commit_sha = sub.commit_sha ?? null;
+      f.submission_commit_sha = sub.commit_sha;
       results.push({
         shortcut_id: f.shortcut_id,
         pr_url: sub.pr_url,
-        commit_sha: sub.commit_sha ?? null,
+        commit_sha: sub.commit_sha,
       });
     } catch (e) {
       results.push({
@@ -365,36 +368,7 @@ export async function submitFindings(input: SubmitFindingsInput): Promise<Submit
   };
 }
 
-// TODO Phase 6a: replace dry-run with the backend's POST /submit, which
-// runs the LLM-based prompt-injection reviewer, opens + auto-merges a PR via
-// the contributor's GitHub OAuth token, and returns { pr_url, commit_sha }.
-async function submitToBackend(
-  shortcut_spec: Record<string, unknown>
-): Promise<{ pr_url: string; commit_sha?: string | null }> {
-  const url = backendUrl();
-  if (url) {
-    const r = await fetch(`${url}/submit`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ shortcut_spec }),
-    });
-    if (!r.ok) {
-      throw new Error(`backend POST ${url}/submit returned HTTP ${r.status}: ${(await r.text()).slice(0, 300)}`);
-    }
-    const data = (await r.json()) as { pr_url: string; commit_sha?: string | null };
-    if (!data.pr_url) throw new Error("backend response missing pr_url");
-    return data;
-  }
-
-  // Dry-run mode (decision G).
-  const cuid = randomBytes(8).toString("hex");
-  const fakeUrl = `https://github.com/wesleyshe/Rosetta/pull/dryrun-${cuid}`;
-  const sid = typeof shortcut_spec.id === "string" ? shortcut_spec.id : "?";
-  const intent = typeof shortcut_spec.intent === "string" ? shortcut_spec.intent : "?";
-  process.stderr.write(
-    `\n[rosetta-mcp DRY RUN] registry.submit: ROSETTA_BACKEND_URL is unset. ` +
-      `Skipping real submission for shortcut "${sid}" (intent: "${intent}"). ` +
-      `Returning fake PR URL: ${fakeUrl}\n`
-  );
-  return { pr_url: fakeUrl, commit_sha: null };
-}
+// Real submission + dry-run fallback both live in registry.ts as submitSpec().
+// explore.submit_findings calls that shared function directly so the
+// behavior is identical across the explore-flow path and the standalone
+// registry_submit MCP tool.
