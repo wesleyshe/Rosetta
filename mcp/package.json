@@ -1,0 +1,24 @@
+{
+  "name": "@rosetta-skills/mcp",
+  "version": "0.0.1",
+  "description": "MCP server for the Rosetta skill registry. npm availability TBD — placeholder name reserved; v0 not yet published.",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "rosetta-mcp": "dist/index.js"
+  },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^20.0.0"
+  }
+}
