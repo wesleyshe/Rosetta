@@ -6,7 +6,7 @@ One-page user guide for provisioning the Rosetta backend on [Railway](https://ra
 
 1. Sign in at https://railway.com.
 2. **New Project → Deploy from GitHub repo**, pick `wesleyshe/Rosetta`.
-3. When prompted for the service root, set it to `backend/`. Railway auto-detects the Node project from `backend/package.json` and uses the `backend/railway.json` build/start commands (`npm run build` → `npm run prisma:deploy && npm run start`).
+3. **Leave Root Directory empty** (or explicitly set to repo root). Do NOT set it to `backend/`. Railway uses the **root-level** `railway.json` and `package.json` to drive the build — those scripts delegate into `backend/` (`cd backend && npm ci && npm run build`, then `cd backend && npm run prisma:deploy && npm run start`). This is deliberate: backend's runtime needs `site/` and `registry/` as siblings of `backend/dist/`, so the whole repo has to be in the deploy image, not just `backend/`.
 4. Wait for the first deploy. It will fail until step 2 is done — that's expected; Prisma needs `DATABASE_URL`.
 
 ## 2. Add the Postgres add-on
@@ -43,9 +43,11 @@ Then:
 ```
 cd backend
 npm install
-npm run prisma:migrate     # creates the tables on first run
+npm run prisma:deploy      # creates / syncs tables with schema (prisma db push)
 npm run dev                # starts Fastify on http://localhost:3000
 ```
+
+`prisma:deploy` runs `prisma db push --accept-data-loss --skip-generate`. v0 uses `db push` (idempotent sync from `schema.prisma`) instead of `prisma migrate deploy` — see parking-lot 11 ("Graduate to Prisma migrations") for when this graduates.
 
 Local writes go to the same Postgres the deployed backend uses. Acceptable in v0; revisit if local dev needs to be safely isolated.
 

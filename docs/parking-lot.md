@@ -143,7 +143,21 @@ Deferred items, **ranked by priority — top = highest priority**. The first ite
 
 ---
 
-## 11. Skill schema versioning beyond major-version bumps
+## 11. Graduate to Prisma migrations
+
+**What:** v0 uses `prisma db push --accept-data-loss --skip-generate` to bring the database into sync with `backend/prisma/schema.prisma` on every deploy. This is idempotent and requires no migration files, which lets us iterate the schema without ceremony. It does NOT give us versioned schema changes, rollback, audit, or safe destructive-change handling once the database holds real data.
+
+**Why deferred:** Phase 6a v0 has zero rows in production and a schema that's still settling. `prisma migrate dev` would force a migration commit per schema tweak before the design has stabilized. `db push` keeps the iteration loop fast for the same blast-radius (an empty/dev-only DB).
+
+**Trigger to pick up:** First non-trivial schema change after launch where the production DB has real `Execution` / `ShortcutStats` / `Contributor` / `Submission` rows that need preserving across the change. At that point switch to `prisma migrate deploy`, generate an initial baseline migration from the live schema, and bake migration creation into the contributor workflow.
+
+**Placeholder behavior:** `backend/package.json`'s `prisma:deploy` script is `prisma db push --accept-data-loss --skip-generate`. The `--accept-data-loss` flag is a no-op on a schema-compatible push; it only matters when the schema would force a destructive change, at which point the script silently drops data. Acceptable in v0 because there is no data worth keeping; UNACCEPTABLE post-launch — that's the trigger.
+
+**Related:** parking-lot 12 (skill schema versioning) covers the JSON-spec side. This item covers the Postgres side. They graduate independently.
+
+---
+
+## 12. Skill schema versioning beyond major-version bumps
 
 **What:** Right now `schema_version` is an integer. We don't have a migration framework, deprecation policy, or backward-compat guarantees.
 
@@ -155,7 +169,7 @@ Deferred items, **ranked by priority — top = highest priority**. The first ite
 
 ---
 
-## 12. Web chat client support
+## 13. Web chat client support
 
 **What:** Letting chatgpt.com, gemini.google.com, claude.ai users control their desktop via the registry.
 
@@ -167,7 +181,7 @@ Deferred items, **ranked by priority — top = highest priority**. The first ite
 
 ---
 
-## 13. Payment / contributor reward economy
+## 14. Payment / contributor reward economy
 
 **What:** Contributors get rewarded when their skills are used. Mechanism TBD: tokens, micropayments, fiat, attribution-only.
 

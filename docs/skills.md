@@ -23,7 +23,7 @@ The app must also have a row in `registry/index.json`. Adding a new app means: c
 
 Three files: `meta.schema.json`, `workflow.schema.json`, `shortcut.schema.json`. The canonical examples are in `docs/architecture.md`.
 
-The schemas declare `schema_version: 1` at every top-level. Breaking changes bump the major version and live in a new schema directory; v0 has no migration framework yet (parking-lot item 11).
+The schemas declare `schema_version: 1` at every top-level. Breaking changes bump the major version and live in a new schema directory; v0 has no migration framework yet (parking-lot item 12).
 
 ## The shortcut entry
 

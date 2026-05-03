@@ -1,9 +1,11 @@
 {
-  "name": "rosetta-tooling",
-  "version": "0.0.0",
+  "name": "rosetta",
+  "version": "0.0.1",
   "private": true,
-  "description": "Repo-root tooling for the Rosetta registry. The MCP server and Railway backend each have their own package.json.",
+  "description": "Repo-root delegator + tooling. Railway uses build/start scripts here (with the root railway.json) to deploy the whole repo and run the backend; the runtime needs site/ and registry/ as siblings of backend/dist. validate-registry + dev are repo-tooling scripts unrelated to the deploy.",
   "scripts": {
+    "build": "cd backend && npm ci && npm run build",
+    "start": "cd backend && npm run prisma:deploy && npm run start",
     "validate-registry": "node scripts/validate-registry.mjs",
     "dev": "node scripts/dev-server.mjs"
   },
