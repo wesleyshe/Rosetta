@@ -95,13 +95,13 @@
       "type": "string",
       "enum": ["friendly", "unknown", "hostile"],
       "default": "unknown",
-      "description": "Parking-lot item 5: vendor stance toward automation. Hostile vendors (anti-bot, captcha walls) tend to score low on reliability."
+      "description": "Parking-lot item 9: vendor stance toward automation. Hostile vendors (anti-bot, captcha walls) tend to score low on reliability."
     },
     "locale": {
       "type": "string",
       "default": "en",
       "minLength": 1,
-      "description": "Parking-lot item 9: locale that meta + shortcuts target. v0 assumes \"en\"."
+      "description": "Parking-lot item 10: locale that meta + shortcuts target. v0 assumes \"en\"."
     },
     "agent_primer": {
       "type": "string",

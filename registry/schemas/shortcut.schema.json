@@ -83,7 +83,7 @@
           "type": "string",
           "enum": ["safe", "destructive", "financial", "external_communication"],
           "default": "safe",
-          "description": "Parking-lot item 10: optional risk classification. Use seed skill should pause for confirmation on non-safe values (informal in v0)."
+          "description": "Parking-lot item 3: optional risk classification. Use seed skill should pause for confirmation on non-safe values (informal in v0)."
         },
         "metadata": { "$ref": "#/$defs/metadata" }
       }
@@ -129,7 +129,7 @@
         },
         "payment_destination": {
           "type": ["string", "null"],
-          "description": "Reserved (parking-lot item 2). Always null in v0; populated when the payment economy ships. Field exists from day one — no backfill."
+          "description": "Reserved (parking-lot item 13). Always null in v0; populated when the payment economy ships. Field exists from day one — no backfill."
         },
         "token_cost_estimate": {
           "type": "integer",

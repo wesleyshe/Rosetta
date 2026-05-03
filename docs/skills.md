@@ -23,7 +23,7 @@ The app must also have a row in `registry/index.json`. Adding a new app means: c
 
 Three files: `meta.schema.json`, `workflow.schema.json`, `shortcut.schema.json`. The canonical examples are in `docs/architecture.md`.
 
-The schemas declare `schema_version: 1` at every top-level. Breaking changes bump the major version and live in a new schema directory; v0 has no migration framework yet (parking-lot item 7).
+The schemas declare `schema_version: 1` at every top-level. Breaking changes bump the major version and live in a new schema directory; v0 has no migration framework yet (parking-lot item 11).
 
 ## The shortcut entry
 
@@ -73,7 +73,7 @@ A shortcut looks like:
 
 ### Optional fields
 
-- **`risk`** — `safe` (default), `destructive`, `financial`, `external_communication`. Hint to the use seed skill (parking-lot item 10).
+- **`risk`** — `safe` (default), `destructive`, `financial`, `external_communication`. Hint to the use seed skill (parking-lot item 3).
 
 ### Forbidden in `metadata`
 
@@ -93,7 +93,7 @@ The following live in the Postgres `ShortcutStats` table and must never appear i
 | `key_combo`  | `{ type, keys }`                                                     | `keys` is either a string (`"cmd+s"`) or a per-platform map (`{ macos, windows, linux }`).                                        |
 | `type_text`  | `{ type, text }`                                                     | Supports `{parameter}` placeholders.                                                                                              |
 | `click`      | `{ type, target: {x, y} \| {ax_path} }`                              | Coordinate clicks are fragile across resolutions; prefer `ax_path`.                                                               |
-| `menu`       | `{ type, path: ["File", "New File", ...] }`                          | Walks the OS menu bar. Locale-dependent (parking-lot item 9).                                                                     |
+| `menu`       | `{ type, path: ["File", "New File", ...] }`                          | Walks the OS menu bar. Locale-dependent (parking-lot item 10).                                                                    |
 | `open_app`   | `{ type, app_id }` **OR** `{ type, platform_specific: true }`        | First form for `shortcut.actions[]`; second form for `workflow.open[]`. Mutually exclusive — schema rejects both/neither present. |
 
 The action `$defs` are byte-identical between `workflow.schema.json` and `shortcut.schema.json`. Any change to action types must touch both files — the validator lints this.
@@ -121,7 +121,7 @@ Each shortcut must declare one verification. Pick the type that most reliably pr
   - **Current-state assertion**: rule names like `command_palette_visible` or `active_editor_filename_contains`. `verify()` checks the post-action AX tree against the rule once.
   - **Stateful (toggle / change) assertion**: rule names ending in `_toggled` or `_changed` (e.g. `sidebar_visibility_toggled`). `verify()` must capture an AX snapshot BEFORE the action, run the action, then snapshot AFTER and compare. Use stateful rules only when the post-state alone is ambiguous (e.g., a toggle whose direction depends on prior state).
 - **`file_check`** — the shortcut produces a filesystem effect. Cleanest for save / export / write operations. Three flavors: `exists` (file present after action), `content_contains` (post-action content includes a string), `hash` (post-action sha256 matches). The `path` may use `{parameter}` placeholders.
-- **`screenshot_diff`** — the shortcut visibly changes a region but the change isn't well-captured by AX. Currently expresses only `max_pixel_diff_ratio` ("verify nothing changed beyond N% of pixels"). The inverse direction ("verify something DID change") is parking-lot item 12; until then, use `interpret_check` for "verify a visible toggle happened."
+- **`screenshot_diff`** — the shortcut visibly changes a region but the change isn't well-captured by AX. Currently expresses only `max_pixel_diff_ratio` ("verify nothing changed beyond N% of pixels"). The inverse direction ("verify something DID change") is parking-lot item 5; until then, use `interpret_check` for "verify a visible toggle happened."
 - **`value_compare`** — compare two values directly (e.g., a captured AX-node value against an expected string). String values support `{parameter}` placeholders.
 - **`interpret_check`** — pass post-action media (screenshot, audio) to a vision/audio model with a question; check the answer against an expected fragment. Use when the visible effect is real but AX doesn't capture it (e.g., zen mode hides chrome visually while the AX-tree presence barely changes), or when the change is too subtle/contextual for a deterministic rule.
 - **`dom_assertion`** — for browser / web targets. Out of scope for the VS Code seed; will appear in browser-app shortcuts later.

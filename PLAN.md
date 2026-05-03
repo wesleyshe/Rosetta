@@ -88,7 +88,7 @@ Status markers: `[ ]` not started, `[~]` in progress, `[x]` done, `[!]` blocked.
 - [x] `os.screenshot(region?)` — full screen or region capture (macOS via `screencapture`; Windows/Linux throw, Phase 7 polish)
 - [x] `os.action({type, ...})` — key, key_combo, type_text, click, menu, open_app. macOS via `@nut-tree-fork/nut-js` + AppleScript; Windows/Linux throw
 - [x] `os.read_ax_tree(rule)` — scoped to seed rules. macOS implements `active_editor_filename` only; other rules return `ax_rule_not_implemented_in_v0` (caller falls back to interpret_check). Windows/Linux throw
-- [x] `verify(spec, options?)` — six-type discriminated dispatcher with standardized `error_class`. Stateful AX rules + `screenshot_diff` require `options.observation.before`. `screenshot_diff` is a byte-level approximation in v0 (parking-lot 12)
+- [x] `verify(spec, options?)` — six-type discriminated dispatcher with standardized `error_class`. Stateful AX rules + `screenshot_diff` require `options.observation.before`. `screenshot_diff` is a byte-level approximation in v0 (parking-lot 5)
 - [x] `interpret(media, question)` — Anthropic only in Phase 4 (default `claude-haiku-4-5`); openai/gemini throw `provider_not_implemented`
 
 **Explore-session state (added in 2026-05-03 final lock-in):**
@@ -143,7 +143,7 @@ Status markers: `[ ]` not started, `[~]` in progress, `[x]` done, `[!]` blocked.
 - [ ] `prisma migrate dev` for the initial migration (run by the user once Postgres is provisioned per RAILWAY_SETUP.md).
 - [ ] Provision Railway: Node.js service + Postgres add-on. Wire `DATABASE_URL` and the env vars in `RAILWAY_SETUP.md`. Enable auto-deploy on `main`.
 - [ ] GitHub OAuth flow on the static site; callback handled by `backend/src/routes/oauth.ts`. Classic OAuth App per kickoff decision E. Token sha256-hashed; raw token never stored. Upserts `Contributor` row.
-- [ ] `backend/src/reviewer.ts`: `claude-sonnet-4-6` call (decision G) returning `{ verdict, reason }`. Acknowledged shallow; sufficient for v0 per parking-lot 1.
+- [ ] `backend/src/reviewer.ts`: `claude-sonnet-4-6` call (decision G) returning `{ verdict, reason }`. Acknowledged shallow; sufficient for v0 per parking-lot 6.
 - [ ] `backend/src/github.ts`: octokit wrapper using the **Contents API** (decision K, no git clone) — read existing `shortcuts.json`, append the new entry, write back, open PR, **squash-merge** via explicit API call (decision F, not GitHub's auto-merge feature). Retry once on 409 stale-SHA.
 - [ ] `backend/src/routes/submit.ts`: ajv validation against `registry/schemas/shortcut.schema.json` BEFORE the reviewer (decision H, no schema duplication). New-app submissions return 400 (decision J — adding a new app needs manual setup). Reviewer verdict drives PR creation; on pass, write `Submission` row and return `{pr_url, commit_sha}`.
 - [ ] `mcp/src/registry.ts`: extract submit logic into a shared function and expose as a top-level `registry_submit` MCP tool (decision I, 14th tool). `explore.submit_findings` calls the same shared function so behavior is identical. Real `POST /submit` when `ROSETTA_BACKEND_URL` is set; existing dry-run when unset.

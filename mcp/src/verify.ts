@@ -354,7 +354,7 @@ async function verifyScreenshotDiff(
       max_allowed: max,
       before_path: before.path,
       after_path: after.path,
-      note: "v0 uses byte-level approximation, not true pixel diff. Proper PNG-decoded pixel comparison is parking-lot 12-adjacent (Phase 7). For visible-toggle verifications use interpret_check.",
+      note: "v0 uses byte-level approximation, not true pixel diff. Proper PNG-decoded pixel comparison is parking-lot 5-adjacent (Phase 7). For visible-toggle verifications use interpret_check.",
     },
   };
 }
@@ -363,7 +363,7 @@ async function verifyScreenshotDiff(
  * Crude byte-level approximation of pixel diff. PNGs of different sizes
  * report ratio = 1.0 (totally different). Otherwise, ratio is the fraction
  * of bytes that differ at corresponding offsets. Highly imprecise for true
- * pixel-level work — proper PNG decoding is deferred (see parking-lot 12 +
+ * pixel-level work — proper PNG decoding is deferred (see parking-lot 5 +
  * the Phase 7 polish substep). Acceptable v0 behavior because no seed
  * shortcut uses screenshot_diff.
  */
