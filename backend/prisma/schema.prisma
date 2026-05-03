@@ -50,7 +50,8 @@ model ShortcutStats {
   last_validated    DateTime?
   updated_at        DateTime  @updatedAt
 
-  @@id([shortcut_id, app_version, platform])
+  // app_id required: shortcut_id is unique only within an app
+  @@id([shortcut_id, app_id, app_version, platform])
 }
 
 model Contributor {
