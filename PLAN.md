@@ -202,7 +202,7 @@ Status markers: `[ ]` not started, `[~]` in progress, `[x]` done, `[!]` blocked.
    3. `save-as-png` (parameter: `path`) — same backbone, no quality dialog
    4. `undo` — `cmd+z`
    5. `adjust-brightness` (parameter: `delta`) — menu Image → Adjustments → Brightness/Contrast → cmd+a + type delta + enter
-   6. `crop-to-region` (parameters: `x`, `y`, `width`, `height`, `rotation_degrees`) — **v0 fallback uses Image → Canvas Size with centered anchor**; only `width` and `height` are honored; `x`, `y`, `rotation_degrees` are reserved (intent string says so). Flagged as the speculative one for Part 3 verification.
+   6. `crop-to-size` (parameters: `width`, `height`) — Image → Canvas Size with centered anchor. **Renamed from `crop-to-region` and trimmed to honest signature post-Part 2 sign-off** (silently-ignored x/y/rotation_degrees were chat-LLM landmines; precise-region crop is 7b territory).
    7. `convert-to-grayscale` — menu Image → Mode → Grayscale → enter (Discard color)
    No `produces`/`consumes` threaded through these — the starter shortcuts are standalone and the composition demos are 7b+ territory (per Part 1 sign-off refinement).
 - [x] `registry/index.json`: photoshop entry added (platforms `["macos"]`, tracked_versions `["25+"]`, skill_count 7).

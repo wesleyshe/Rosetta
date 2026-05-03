@@ -39,7 +39,10 @@
         {
           "name": "quality",
           "type": "number",
-          "required": false
+          "required": false,
+          "minimum": 0,
+          "maximum": 12,
+          "description": "JPG quality, Photoshop's native 0-12 scale (the 'Save a Copy' → JPG Options dialog scale, NOT the 0-100 scale used by Save for Web / Export As). 12 = highest quality, 0 = highest compression. Defaults to Photoshop's last-used value if omitted."
         }
       ],
       "platforms": ["macos"],
@@ -154,14 +157,11 @@
       }
     },
     {
-      "id": "crop-to-region",
-      "intent": "Resize the canvas to a target width x height in pixels, centered (v0 fallback uses Image > Canvas Size; x, y origin and rotation_degrees parameters are reserved for a more flexible crop path that lands in 7b+)",
+      "id": "crop-to-size",
+      "intent": "Crop the canvas to {width}×{height}, centered on the current canvas. Positioning (x, y) and rotation are not supported in this shortcut — use the explorer skill to discover precise crop primitives if needed.",
       "parameters": [
-        { "name": "x", "type": "number", "required": false },
-        { "name": "y", "type": "number", "required": false },
         { "name": "width", "type": "number", "required": true },
-        { "name": "height", "type": "number", "required": true },
-        { "name": "rotation_degrees", "type": "number", "required": false }
+        { "name": "height", "type": "number", "required": true }
       ],
       "platforms": ["macos"],
       "app_versions": ["25+"],
@@ -177,7 +177,7 @@
       ],
       "verification": {
         "type": "interpret_check",
-        "question": "Does the active document's canvas now appear to be approximately {width} x {height} pixels (centered crop or extension from the previous canvas)?",
+        "question": "Has the canvas been cropped to approximately {width}×{height}, centered on the original?",
         "expected": "yes"
       },
       "metadata": {

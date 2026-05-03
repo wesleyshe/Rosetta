@@ -127,6 +127,19 @@
           "type": "boolean",
           "default": false
         },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Human-facing parameter documentation. Surfaces in the generated apps/{app_id}/skill.md and helps the chat LLM choose values."
+        },
+        "minimum": {
+          "type": "number",
+          "description": "Numeric lower bound (inclusive). Only meaningful for type:\"number\". Caller-side constraint; the registry does not enforce at submission time in v0."
+        },
+        "maximum": {
+          "type": "number",
+          "description": "Numeric upper bound (inclusive). Only meaningful for type:\"number\". Caller-side constraint; the registry does not enforce at submission time in v0."
+        },
         "consumes": { "$ref": "#/$defs/consumes" }
       }
     },
