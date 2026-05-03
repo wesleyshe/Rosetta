@@ -23,7 +23,7 @@ The app must also have a row in `registry/index.json`. Adding a new app means: c
 
 Three files: `meta.schema.json`, `workflow.schema.json`, `shortcut.schema.json`. The canonical examples are in `docs/architecture.md`.
 
-The schemas declare `schema_version: 1` at every top-level. Breaking changes bump the major version and live in a new schema directory; v0 has no migration framework yet (parking-lot item 12).
+The schemas declare `schema_version: 1` at every top-level. Breaking changes bump the major version and live in a new schema directory; v0 has no migration framework yet (parking-lot item 13).
 
 ## The shortcut entry
 
@@ -93,7 +93,7 @@ The following live in the Postgres `ShortcutStats` table and must never appear i
 | `key_combo`  | `{ type, keys }`                                                     | `keys` is either a string (`"cmd+s"`) or a per-platform map (`{ macos, windows, linux }`).                                        |
 | `type_text`  | `{ type, text }`                                                     | Supports `{parameter}` placeholders.                                                                                              |
 | `click`      | `{ type, target: {x, y} \| {ax_path} }`                              | Coordinate clicks are fragile across resolutions; prefer `ax_path`.                                                               |
-| `menu`       | `{ type, path: ["File", "New File", ...] }`                          | Walks the OS menu bar. Locale-dependent (parking-lot item 10).                                                                    |
+| `menu`       | `{ type, path: ["File", "New File", ...] }`                          | Walks the OS menu bar. Locale-dependent (parking-lot item 11).                                                                    |
 | `open_app`   | `{ type, app_id }` **OR** `{ type, platform_specific: true }`        | First form for `shortcut.actions[]`; second form for `workflow.open[]`. Mutually exclusive — schema rejects both/neither present. |
 
 The action `$defs` are byte-identical between `workflow.schema.json` and `shortcut.schema.json`. Any change to action types must touch both files — the validator lints this.

@@ -90,7 +90,24 @@ Deferred items, **ranked by priority — top = highest priority**. The first ite
 
 ---
 
-## 7. Automated skill decay detection (PARTIALLY ACTIVATED 2026-05-02)
+## 7. Nixpacks injects secrets as Docker ARG/ENV at build time
+
+**What:** Railway's Nixpacks builder bakes the project's environment variables (including ANTHROPIC_API_KEY and GITHUB_OAUTH_CLIENT_SECRET) into the Docker image as ARG and ENV directives. Build logs show this via `SecretsUsedInArgOrEnv` warnings. The resulting image layers contain plaintext secrets, extractable by anyone with image pull access.
+
+**Why deferred:** Railway's image registry is private to the deployer in practice. Acceptable risk while the project is single-operator. Becomes concerning if the image fans out (CI cache, multi-team setups, shared infrastructure).
+
+**Trigger to pick up:** When non-deployer parties gain image-pull access, or when Nixpacks adds first-class BuildKit `--secret` support and migration is straightforward. Or proactively before any production launch with sensitive customer data.
+
+**Placeholder behavior:** Continue using Railway env vars as-is. The warning is benign in the single-operator context.
+
+**When picked up:**
+- Check whether Nixpacks supports BuildKit secrets natively (`RUN --mount=type=secret,id=...`).
+- Or migrate to a custom Dockerfile with explicit `--mount=type=secret`, avoiding ARG/ENV for credentials entirely.
+- Rotate any secrets that have lived in deployed images.
+
+---
+
+## 8. Automated skill decay detection (PARTIALLY ACTIVATED 2026-05-02)
 
 **What:** A skill that worked when contributed may stop working when the app updates. Currently we have no first-party way to test this proactively.
 
@@ -107,7 +124,7 @@ Deferred items, **ranked by priority — top = highest priority**. The first ite
 
 ---
 
-## 8. Multi-window / multi-instance app handling
+## 9. Multi-window / multi-instance app handling
 
 **What:** Apps like Chrome, VS Code, or Photoshop can have multiple windows or instances. Current schema doesn't disambiguate which window an action targets.
 
@@ -119,7 +136,7 @@ Deferred items, **ranked by priority — top = highest priority**. The first ite
 
 ---
 
-## 9. Adversarial app vendors
+## 10. Adversarial app vendors
 
 **What:** Some app/site vendors actively detect and block automation (Google Flights, Amazon, ticketing sites). Skills against these targets may be brittle by design.
 
@@ -131,7 +148,7 @@ Deferred items, **ranked by priority — top = highest priority**. The first ite
 
 ---
 
-## 10. Internationalization / locale variation
+## 11. Internationalization / locale variation
 
 **What:** Menu paths, app strings, and search keywords differ across locales. A shortcut that uses `menu: ["Image", "Adjustments", "Brightness/Contrast"]` won't work for a Japanese-language Photoshop install.
 
@@ -143,7 +160,7 @@ Deferred items, **ranked by priority — top = highest priority**. The first ite
 
 ---
 
-## 11. Graduate to Prisma migrations
+## 12. Graduate to Prisma migrations
 
 **What:** v0 uses `prisma db push --accept-data-loss --skip-generate` to bring the database into sync with `backend/prisma/schema.prisma` on every deploy. This is idempotent and requires no migration files, which lets us iterate the schema without ceremony. It does NOT give us versioned schema changes, rollback, audit, or safe destructive-change handling once the database holds real data.
 
@@ -153,11 +170,11 @@ Deferred items, **ranked by priority — top = highest priority**. The first ite
 
 **Placeholder behavior:** `backend/package.json`'s `prisma:deploy` script is `prisma db push --accept-data-loss --skip-generate`. The `--accept-data-loss` flag is a no-op on a schema-compatible push; it only matters when the schema would force a destructive change, at which point the script silently drops data. Acceptable in v0 because there is no data worth keeping; UNACCEPTABLE post-launch — that's the trigger.
 
-**Related:** parking-lot 12 (skill schema versioning) covers the JSON-spec side. This item covers the Postgres side. They graduate independently.
+**Related:** parking-lot 13 (skill schema versioning) covers the JSON-spec side. This item covers the Postgres side. They graduate independently.
 
 ---
 
-## 12. Skill schema versioning beyond major-version bumps
+## 13. Skill schema versioning beyond major-version bumps
 
 **What:** Right now `schema_version` is an integer. We don't have a migration framework, deprecation policy, or backward-compat guarantees.
 
@@ -169,7 +186,7 @@ Deferred items, **ranked by priority — top = highest priority**. The first ite
 
 ---
 
-## 13. Web chat client support
+## 14. Web chat client support
 
 **What:** Letting chatgpt.com, gemini.google.com, claude.ai users control their desktop via the registry.
 
@@ -181,7 +198,7 @@ Deferred items, **ranked by priority — top = highest priority**. The first ite
 
 ---
 
-## 14. Payment / contributor reward economy
+## 15. Payment / contributor reward economy
 
 **What:** Contributors get rewarded when their skills are used. Mechanism TBD: tokens, micropayments, fiat, attribution-only.
 

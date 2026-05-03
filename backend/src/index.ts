@@ -24,6 +24,19 @@ const HOST = "0.0.0.0";
 const app = Fastify({
   logger: {
     level: process.env.LOG_LEVEL ?? "info",
+    redact: {
+      paths: [
+        "req.headers.authorization",
+        "req.headers.cookie",
+        "res.headers.set-cookie",
+        "*.token",
+        "*.api_key",
+        "*.client_secret",
+        "*.oauth_token",
+        "*.password",
+      ],
+      censor: "[REDACTED]",
+    },
   },
   bodyLimit: 256 * 1024,
 });

@@ -47,7 +47,7 @@ npm run prisma:deploy      # creates / syncs tables with schema (prisma db push)
 npm run dev                # starts Fastify on http://localhost:3000
 ```
 
-`prisma:deploy` runs `prisma db push --accept-data-loss --skip-generate`. v0 uses `db push` (idempotent sync from `schema.prisma`) instead of `prisma migrate deploy` — see parking-lot 11 ("Graduate to Prisma migrations") for when this graduates.
+`prisma:deploy` runs `prisma db push --accept-data-loss --skip-generate`. v0 uses `db push` (idempotent sync from `schema.prisma`) instead of `prisma migrate deploy` — see parking-lot 12 ("Graduate to Prisma migrations") for when this graduates.
 
 Local writes go to the same Postgres the deployed backend uses. Acceptable in v0; revisit if local dev needs to be safely isolated.
 
