@@ -7,7 +7,7 @@
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { backendUrl, localRegistryPath } from "./config.js";
+import { backendUrl, currentPlatform, loadOrCreateInstallId, localRegistryPath } from "./config.js";
 
 // ---------- types ----------
 
@@ -218,4 +218,67 @@ function withColdStart(s: Shortcut): ShortcutWithStats {
     },
     cold_start: true,
   };
+}
+
+// ---------- report_execution (Phase 5 stub; Phase 6b wires Postgres) ----------
+
+export interface ReportExecutionInput {
+  shortcut_id: string;
+  app_id: string;
+  success: boolean;
+  error_class?: string;
+  app_version: string;
+  /** Optional override; defaults to currentPlatform(). */
+  platform?: "macos" | "windows" | "linux";
+}
+
+export interface ReportExecutionOutput {
+  ok: boolean;
+  /** True when ROSETTA_BACKEND_URL is unset and the call ran in dry-run mode. */
+  dry_run: boolean;
+}
+
+// TODO Phase 6b: replace dry-run with the backend's POST /report-execution,
+// which writes an `Execution` row and updates aggregated `ShortcutStats`.
+export async function reportExecution(
+  input: ReportExecutionInput
+): Promise<ReportExecutionOutput> {
+  if (!input.shortcut_id) throw new Error("registry.report_execution: shortcut_id is required");
+  if (!input.app_id) throw new Error("registry.report_execution: app_id is required");
+  if (typeof input.success !== "boolean") {
+    throw new Error("registry.report_execution: success must be a boolean");
+  }
+  if (!input.app_version) throw new Error("registry.report_execution: app_version is required");
+
+  const event = {
+    shortcut_id: input.shortcut_id,
+    app_id: input.app_id,
+    install_id: loadOrCreateInstallId().install_id,
+    success: input.success,
+    error_class: input.error_class,
+    app_version: input.app_version,
+    platform: input.platform ?? currentPlatform(),
+    timestamp: new Date().toISOString(),
+  };
+
+  const url = backendUrl();
+  if (url) {
+    const r = await fetch(`${url}/report-execution`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(event),
+    });
+    if (!r.ok) {
+      throw new Error(
+        `backend POST ${url}/report-execution returned HTTP ${r.status}: ${(await r.text()).slice(0, 300)}`
+      );
+    }
+    return { ok: true, dry_run: false };
+  }
+
+  process.stderr.write(
+    `\n[rosetta-mcp DRY RUN] registry.report_execution: ROSETTA_BACKEND_URL is unset. ` +
+      `Event: ${JSON.stringify(event)}\n`
+  );
+  return { ok: true, dry_run: true };
 }

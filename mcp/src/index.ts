@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-// rosetta-mcp Phase 4 entry point.
+// rosetta-mcp entry point (Phase 5).
 //
-// Twelve tools, all wired in:
-//   Registry (Phase 3): registry_list_apps, registry_lookup, os_app_info
+// Thirteen tools, all wired in:
+//   Registry (Phase 3 + 5 stub): registry_list_apps, registry_lookup,
+//                                registry_report_execution, os_app_info
 //   Computer control (Phase 4 Part 1): os_screenshot, os_action, os_read_ax_tree
 //   Verification (Phase 4 Part 1): verify, interpret
 //   Explore session (Phase 4 Part 2): explore_start_session, explore_save_finding,
@@ -20,7 +21,7 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 
-import { listApps, lookup } from "./registry.js";
+import { listApps, lookup, reportExecution } from "./registry.js";
 import {
   appInfo,
   screenshot,
@@ -88,6 +89,32 @@ const tools = [
         },
       },
       required: ["app_id", "intent"],
+      additionalProperties: false,
+    },
+  },
+
+  {
+    name: "registry_report_execution",
+    description:
+      "Report a single shortcut-execution outcome (success or failure) for telemetry. Phase 5 stub: when ROSETTA_BACKEND_URL is set, POSTs to <url>/report-execution; otherwise runs in DRY-RUN mode (logs the event payload to stderr, returns {ok:true, dry_run:true}). The use seed skill calls this immediately after every verify(...) call, regardless of outcome — it is the feedback loop that drives reliability_score in the live registry. (Conceptually `registry.report_execution`.)",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        shortcut_id: { type: "string", description: "Stable shortcut id from the registry." },
+        app_id: { type: "string", description: 'App identifier (e.g. "vscode").' },
+        success: { type: "boolean", description: "True if verify() passed; false otherwise." },
+        error_class: {
+          type: "string",
+          description: "On failure: the verify() result's error_class (e.g. ax_query_failed, interpret_mismatch).",
+        },
+        app_version: { type: "string", description: "App version observed during execution." },
+        platform: {
+          type: "string",
+          enum: ["macos", "windows", "linux"],
+          description: "Optional. Defaults to the host platform.",
+        },
+      },
+      required: ["shortcut_id", "app_id", "success", "app_version"],
       additionalProperties: false,
     },
   },
@@ -361,6 +388,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (!app_id) throw new Error("registry_lookup: app_id is required");
         const shortcuts = await lookup(app_id, intent, platform, app_version);
         result = { shortcuts };
+        break;
+      }
+      case "registry_report_execution": {
+        result = await reportExecution({
+          shortcut_id: String(args.shortcut_id ?? ""),
+          app_id: String(args.app_id ?? ""),
+          success: Boolean(args.success),
+          error_class: typeof args.error_class === "string" ? args.error_class : undefined,
+          app_version: String(args.app_version ?? ""),
+          platform:
+            args.platform === "macos" || args.platform === "windows" || args.platform === "linux"
+              ? args.platform
+              : undefined,
+        });
         break;
       }
       case "os_app_info": {
