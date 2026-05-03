@@ -85,21 +85,21 @@ Status markers: `[ ]` not started, `[~]` in progress, `[x]` done, `[!]` blocked.
 
 **Computer control:**
 
-- [ ] `os.screenshot(region?)` — full screen or region capture
-- [ ] `os.action({type, ...})` — keystroke, key combo, mouse click, type-text. Wraps platform-native input (use `nut.js` or `robotjs` for cross-platform)
-- [ ] `os.read_ax_tree(window?)` — accessibility tree per platform (NSAccessibility on macOS, UIA on Windows, AT-SPI on Linux)
-- [ ] `verify(spec, observation?)` — implement DOM assertion, AX assertion, screenshot diff, file existence/hash checks
-- [ ] `interpret(media, question)` — calls a vision/audio model on captured media (start with a single configurable provider)
+- [x] `os.screenshot(region?)` — full screen or region capture (macOS via `screencapture`; Windows/Linux throw, Phase 7 polish)
+- [x] `os.action({type, ...})` — key, key_combo, type_text, click, menu, open_app. macOS via `@nut-tree-fork/nut-js` + AppleScript; Windows/Linux throw
+- [x] `os.read_ax_tree(rule)` — scoped to seed rules. macOS implements `active_editor_filename` only; other rules return `ax_rule_not_implemented_in_v0` (caller falls back to interpret_check). Windows/Linux throw
+- [x] `verify(spec, options?)` — six-type discriminated dispatcher with standardized `error_class`. Stateful AX rules + `screenshot_diff` require `options.observation.before`. `screenshot_diff` is a byte-level approximation in v0 (parking-lot 12)
+- [x] `interpret(media, question)` — Anthropic only in Phase 4 (default `claude-haiku-4-5`); openai/gemini throw `provider_not_implemented`
 
 **Explore-session state (added in 2026-05-03 final lock-in):**
 
-- [ ] Session-file storage layer: read/write `~/.config/rosetta-mcp/sessions/{app_id}.json` with the schema in `docs/architecture.md`. Schema-version aware, atomic writes.
-- [ ] `explore.start_session({ app_id, budget_minutes, submission_reserve_minutes?, reset? })` — creates fresh or resumes from existing file; returns `{ resumed, previously_completed_intents, previously_abandoned_intents, findings_count }`.
-- [ ] `explore.save_finding({ shortcut_spec, status, verification_log? })` — appends or updates in place by `shortcut_spec.id`.
-- [ ] `explore.budget_status()` — returns time accounting plus `should_stop_discovering` flag.
-- [ ] `explore.submit_findings({ app_id })` — iterates verified, not-yet-submitted findings; calls `registry.submit` for each; records PR URL and merged commit SHA back into the session file. Idempotent.
+- [x] Session-file storage layer: read/write `<config_dir>/sessions/{app_id}.json`. Schema-version aware, atomic writes (write to `.tmp`, rename).
+- [x] `explore.start_session({ app_id, budget_minutes, submission_reserve_minutes?, reset? })` — creates fresh or resumes from existing file; returns `{ resumed, app_id, session_path, previously_completed_intents, previously_abandoned_intents, findings_count, budget, started_at }`.
+- [x] `explore.save_finding({ shortcut_spec, status, verification_log? })` — appends or updates in place by `shortcut_spec.id`. Auto-maintains `completed_intents` (verified) and `abandoned_intents` (rejected_by_self).
+- [x] `explore.budget_status()` — wall-clock minutes from `started_at`; `should_stop_discovering: true` when remaining ≤ reserve.
+- [x] `explore.submit_findings({ app_id })` — iterates verified, not-yet-submitted findings; calls `registry.submit` for each; records PR URL and commit SHA back. Idempotent. Dry-run mode (returns `dryrun-{cuid}` URLs) when `ROSETTA_BACKEND_URL` unset; real backend POST wired in Phase 6a.
 
-**Cross-platform smoke test:** drive VS Code via the MCP from Claude Desktop, end-to-end. Includes a mini explore-session run that creates a session file, saves a finding, checks budget, and resumes.
+**Cross-platform smoke test:** Phase 7 polish per kickoff decision B. Phase 4 verified macOS-only via stdio: `tools/list` returns all 12 tools; `os.screenshot` round-trips a 1.7 MB PNG; explore-session lifecycle (start → save × 2 → budget → submit dry-run) writes the expected session file; resume in a fresh process recovers `completed_intents`, `abandoned_intents`, `findings_count`, and preserves `started_at`. End-to-end VS Code drive from Claude Desktop is too invasive to run unattended; deferred to Phase 5 manual tests.
 
 **Estimate:** 10-18 hours. Hardest phase.
 
