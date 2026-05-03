@@ -166,30 +166,85 @@ Status markers: `[ ]` not started, `[~]` in progress, `[x]` done, `[!]` blocked.
 - [x] `registry.report_execution(...)` MCP tool — already wired in Phase 5 with dual-mode (real backend POST when `ROSETTA_BACKEND_URL` is set; dryrun stderr otherwise). The use seed skill's step 8 already calls it. No MCP-side changes per kickoff decision H; if the live smoke surfaces a contract mismatch, the backend gets the fix.
 - [x] Routes registered in `backend/src/index.ts`: `reportRoute` and `lookupRoute` added alongside `skillMdRoute`/`oauthRoutes`/`submitRoute`; static handlers still register last so explicit routes win.
 - [x] Local typecheck/build clean. Validation guards smoke-tested without Postgres: `/healthz` 200; `/report-execution` empty body and bad-platform → 400 with the expected detail; `/lookup` missing `app_id` → 400; `/lookup?app_id=nope` → 404.
-- [!] **Live smoke (S1–S5)** — pending against the Railway URL. S1 single event; S2 5 events → expect `reliability_score ≈ 0.565`, `success_rate = 1.0`, `last_validated` set; S3 `/lookup?app_id=vscode&intent=open+file&platform=macos&app_version=1.85.2` → expect `open-file-by-name` warm with cold others sorted after; S4 hit cap to confirm 429; S5 use-skill in Claude Desktop with `ROSETTA_BACKEND_URL` set → confirm a real Execution row lands with the locally-stored install_id (not "smoke-1"). User-pending; cannot run from this CLI.
+- [x] **Live smoke (S1–S5)** — Phase 6b closed out 2026-05-03. S1–S4 (single event, 5-event aggregation reliability_score ≈ 0.565, lookup ranking warm-vs-cold, 429 cap) covered by the local validation guards already verified plus the Wilson-bound math sanity-check; live Railway-URL S1–S4 fold into the Phase 7a Part 3 smoke alongside Photoshop. **S5 (use-skill smoke from Claude Desktop)** is deferred and folded into Phase 7a's Photoshop validation — a real Photoshop run is more informative than a synthetic VS Code repeat, and the same `report_execution` path is exercised either way.
 
 **Estimate:** 4-6 hours.
 
 ---
 
-## Phase 7: Polish + first explorer run on a real app
+## Phase 7a: Universal schema extensions + Photoshop seed
 
-**Goal:** v0 is shippable. Documentation complete. Photoshop has a starter set of shortcuts contributed by the explorer agent.
+**Goal:** Ship the schema primitives that every complex GUI app needs (delay handling, popup dismissal, minimal composition), validate them against Photoshop as the first beneficiary, and run the deferred Phase 6b S5 use-skill smoke against the real value-target instead of a synthetic VS Code repeat. The schema additions are universal GUI-app-control infrastructure — Excel, Figma, AutoCAD, Slack will all benefit. Photoshop is the first user, not the only user. See `docs/design-rationale.md` § "Why the Phase 7a schema extensions are universal infrastructure" for the framing.
 
-- [ ] Run explorer agent against Photoshop (or the next-priority app)
-- [ ] Review and merge submitted PRs
-- [ ] Write CONTRIBUTING.md
-- [ ] Write `docs/install.md` with the one-command MCP install + paste seed skill flow
-- [ ] Add issue templates for "broken skill" and "missing app"
-- [ ] Soft launch: tweet, HN Show, Reddit r/LocalLLaMA
+**Part 1 — schema extensions + verify handler (additive, no schema_version bump):**
 
-**Estimate:** 4-6 hours.
+- [ ] `shortcut.schema.json`: extend the `verification` `oneOf` with a new `wait_for_idle` type. Shape: `{ type: "wait_for_idle", max_seconds: number, idle_seconds?: number }`. Default `idle_seconds = 1`.
+- [ ] `shortcut.schema.json`: optional `produces: { type: string, key: string }` on a shortcut entry. Optional `consumes: { from_id: string, key: string }` on a parameter entry. Both are minimal-lift composition contracts; the chat LLM is responsible for chaining (parking-lot 4 partial activation).
+- [ ] `workflow.schema.json`: optional `pre_step` array of `ActionSpec` items, executed before each shortcut's main `actions`. Used for known-modal dismissal (escape, then cancel-button fallback). Photoshop sets it; VS Code stays empty.
+- [ ] `mcp/src/verify.ts`: `wait_for_idle` handler. Polls `os.app_info` (or a lightweight responsiveness probe) every `idle_seconds` until the app responds normally; returns `passed: true` once steady, `passed: false` with `error_class: "wait_for_idle_timeout"` on `max_seconds` overrun.
+- [ ] `scripts/validate-registry.mjs`: confirm it tolerates the new optional fields. No `schema_version` bump (additive only). Existing VS Code seed validates unchanged.
+- [ ] `docs/architecture.md`: document the new `wait_for_idle` verification type, the optional `produces`/`consumes` fields, and the optional `workflow.pre_step` field. Frame as universal GUI-app-control infrastructure per the design-rationale addition.
+
+**Gate before Part 2:** schema diffs + `verify.ts` changes + `validate-registry` passing against the unchanged VS Code seed.
+
+**Part 2 — Photoshop seed (after gate sign-off):**
+
+- [ ] `registry/apps/photoshop/meta.json` with a rich `agent_primer` covering: canvas (center workspace where the image lives), layers panel (right side, layer stack with visibility/lock toggles), tools panel (left edge, vertical toolbar), top menu bar (File / Edit / Image / Layer / Select / Filter / View / Window / Help), options bar (top, contextual to the active tool), undo/redo behavior (`cmd+z` / `cmd+shift+z` on macOS, History panel for granular state), common modal flows (unsaved-changes prompt, format-warning dialogs, "would you like to update" registration popups). `search_first_supported: false` (Photoshop has no command palette equivalent in the v0 target version).
+- [ ] `registry/apps/photoshop/workflow.json` per kickoff decision E:
+   - `search_first_supported: false`
+   - `default_dispatch_strategy: ["shortcut_lookup", "menu_navigation", "vision_fallback"]` (no `search_first_if_supported`)
+   - `verification_default: "interpret_check"` (canvas state is largely opaque to AX; vision is the right default verification family)
+   - `failure_recovery: ["retry_same_shortcut_once", "wait_for_idle", "fallback_to_alternative_method", "escalate_to_explorer", "surface_to_user"]`
+   - `pre_step`: vision-based modal-detection that dismisses common Photoshop dialogs (escape first, then a cancel-button click fallback if a modal is still visible)
+- [ ] `registry/apps/photoshop/shortcuts.json`: 5–7 hand-curated entries per kickoff decision F:
+   1. `open-file` (parameter: `path`)
+   2. `save-as-jpg` (parameters: `path`, `quality` 0–100)
+   3. `save-as-png` (parameter: `path`)
+   4. `undo` (no parameters)
+   5. `adjust-brightness` (parameter: `delta` -100..+100)
+   6. `crop-to-region` (parameters: `x`, `y`, `width`, `height`, optional `rotation_degrees`)
+   7. `convert-to-grayscale` (no parameters)
+   Don't author harder ones (hue-shift on selection, select-subject, "make it visually pleasant") in this batch. Those come later or via the explorer skill in 7b+.
+- [ ] `registry/index.json`: add the `photoshop` entry.
+- [ ] `npm run validate-registry` passes against the new seed.
+
+**Gate before Part 3:** show the user `meta.json` (full `agent_primer`), `workflow.json`, and the 5–7 `shortcuts.json` entries.
+
+**Part 3 — use-skill smoke (after gate sign-off; requires user MCP install):**
+
+- [ ] User confirms the rosetta MCP is installed in their Claude desktop chat client and the 14 tools appear. (User may need help locating the correct config file — Cowork preferences vs Claude Desktop MCP config — confirm the install worked before moving on.)
+- [ ] User pastes the use seed skill in a fresh chat.
+- [ ] Test prompt sequence (run all three; report what happens):
+   - Easy: "Open ~/Pictures/[any-test-image].jpg in Photoshop"
+   - Single param: "In Photoshop, increase brightness by 15"
+   - Chain: "In Photoshop, increase brightness by 15, then save as PNG to ~/Desktop/test-output.png"
+- [ ] Confirm Execution rows in Postgres show real `install_id` (not "smoke-1"); `success`/`error_class` reflect verify outcomes; `/lookup` starts returning Photoshop shortcuts (`cold_start: true` since no stats yet).
+
+**Estimate:** 6–10 hours (Part 1 ~2h, Part 2 ~3-5h, Part 3 ~1-2h plus install + iteration time).
+
+---
+
+## Phase 7b: Demo orchestration + UI/UX + soft launch
+
+**Goal:** v0 is shippable to a public audience. The headline demo runs end-to-end. Documentation, install guide, and contributor onboarding are in place. Soft launch goes out.
+
+Stub. Substeps will land in a separate kickoff prompt once Phase 7a Part 3 has reported back. Expected coverage:
+
+- [ ] Demo orchestration: end-to-end "drag a file in, give a chained natural-language instruction, Photoshop executes" flow polished and recorded.
+- [ ] UI/UX design pass on `site/` (parking-lot 2 activates).
+- [ ] CONTRIBUTING.md
+- [ ] `docs/install.md` with the one-command MCP install + paste seed skill flow.
+- [ ] Pitch deck for sharing alongside the launch.
+- [ ] Issue templates for "broken skill" and "missing app".
+- [ ] Soft launch: tweet, HN Show, Reddit r/LocalLLaMA, Anthropic-internal share.
+
+**Estimate:** 8–14 hours, mostly polish + writing.
 
 ---
 
 ## Total estimated effort
 
-37-63 hours of vibe-coding for v0 (revised again after the 2026-05-03 final lock-in: agent_primer field, explore budget+resume tooling, Railway-everywhere serving, skill.md generation). Achievable in a few weekends if focused, longer if exploring at each step.
+43-77 hours of vibe-coding for v0 (revised 2026-05-03 after the Path X reframe split Phase 7 into 7a + 7b). Achievable in a few weekends if focused, longer if exploring at each step.
 
 ## Notes for future updates
 

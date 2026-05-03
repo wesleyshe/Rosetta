@@ -42,15 +42,17 @@ Deferred items, **ranked by priority — top = highest priority**. The first ite
 
 ---
 
-## 4. Cross-skill composition contracts
+## 4. Cross-skill composition contracts (PARTIALLY ACTIVATED 2026-05-03)
 
 **What:** When the user asks "increase brightness, add a dog, crop the photo," the agent chains three shortcuts. There's no formal contract for how shortcut outputs feed into shortcut inputs (e.g., "this shortcut produces a selection region that the next one consumes").
 
-**Why deferred:** Most v0 use cases are single-shortcut or trivially sequential (do A, then do B). Real composition with state passing is a v2 concern.
+**Status:** Phase 7a (2026-05-03) activates the minimum viable schema surface for composition: optional `produces: { type, key }` on a shortcut, optional `consumes: { from_id, key }` on a parameter. The chat LLM remains responsible for actually wiring outputs to inputs across a chain — the schema just gives it the hooks. Type-checking the chain, runtime validation that `from_id` resolves to a recently-executed shortcut, and any kind of typed-port system stay parked.
 
-**Trigger to pick up:** When users start chaining 3+ shortcuts and we see failures in the seam between them.
+**Why partially now:** The Phase 7b headline demo ("crop to the red girl, make the dress green, export as PNG") is a chain by construction. Without `produces`/`consumes`, the registry has no way to record that the crop step emits a selection region the export step might consume. With them, the chat LLM has a structured cue and contributor authorship has a place to express intent. See `docs/design-rationale.md` § "Why the Phase 7a schema extensions are universal infrastructure" for the framing.
 
-**Placeholder behavior:** Shortcuts have `parameters` (inputs) but no `produces` (outputs). The chat LLM handles composition implicitly. Future: add `produces` field to shortcuts and `consumes` to parameters, with type checking.
+**Trigger to fully activate:** When users chain 3+ shortcuts and we see real failures in the seam between them (the chat LLM loses context, the wrong selection survives, a parameter is silently dropped). Or when a contributor wants to declare a typed-port contract that the harness should validate at runtime.
+
+**Placeholder behavior:** Shortcuts MAY declare `produces`. Parameters MAY declare `consumes`. The MCP does not enforce or validate the linkage today. The chat LLM is the interpreter; if it ignores the fields, behavior is unchanged. Future: type checking, runtime resolution of `from_id`, possibly a `chain_state` registry tool the LLM can read between steps.
 
 ---
 

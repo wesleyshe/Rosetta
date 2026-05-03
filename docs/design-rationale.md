@@ -309,6 +309,46 @@ Both can coexist (issues for tactical work, parking lot for strategic deferrals)
 
 ---
 
+## Why Photoshop is the launch target, not VS Code
+
+**Decision (2026-05-03, "Path X"):** VS Code stays in place as the architectural-validation seed; Photoshop becomes the launch-time value-target. Phase 7 splits into 7a (universal GUI-app-control schema extensions, validated against a hand-curated Photoshop seed) and 7b (demo, UI/UX, soft launch).
+
+**Why VS Code was the right Phase 1 choice and the wrong v0 showcase:**
+
+- VS Code was correct for Phase 1 because the command palette + clean AX tree make schema validation easy. It exercises search-first dispatch, parameter substitution, and three verification types (`ax_tree_assertion`, `file_check`, `interpret_check`) without forcing the schema to grow before its time. That's engineering correctness, not user value.
+- VS Code's value-add over Claude Code is small. Claude Code already drives VS Code directly via file edits and terminal commands, on the same machine, in the same session. MCP-mediated keystroke routing is slower and more brittle than direct file edits — there's no story for why someone would prefer it.
+- Shipping v0 with only VS Code as the showcase would miscommunicate what Rosetta is for. A would-be user reading the demo thinks "I already have Claude Code; why would I install this?" and bounces. The product looks like a worse version of an existing tool.
+
+**Why Photoshop is the launch target instead:**
+
+- Photoshop has no native AI integration. There is no Photoshop equivalent of Claude Code, no "Ask Photoshop" command, no MCP server shipped by Adobe. The agent path is the only path.
+- Photoshop is complex enough to surface real engineering needs that VS Code doesn't: long-running operations with loading states (filters, exports), surprise modals (unsaved-changes dialogs, registration popups, "this format requires…" warnings), parameterized continuous numeric values (brightness +10, hue shift -25°), and chained operations where one step's output feeds the next (crop region → fill selection → export).
+- Audience overlap with the actual product fit. Rosetta's value is "agents controlling apps the agent's vendor doesn't ship integrations for." Creative pros and power users are exactly that audience: they already pay for app subscriptions, they already pay for AI assistants, and the gap between the two is a real frustration.
+
+**What this changes for Phase 1's choice:** Nothing. Phase 1's VS Code seed remains the architectural validation it was always intended to be. Adding Photoshop earlier would have stalled schema work on harder problems (delays, popups, composition) before the basics were locked in. The Path X reframe is a launch-positioning fix, not a Phase 1 redo.
+
+---
+
+## Why the Phase 7a schema extensions are universal infrastructure
+
+**Decision (2026-05-03):** The three additions in Phase 7a — `wait_for_idle` verification primitive, `pre_step` action sequence on the workflow, and minimal `produces` / `consumes` composition fields — are framed and authored as universal GUI-app-control infrastructure, not as Photoshop-specific hacks.
+
+**Why this framing matters:**
+
+- Every complex GUI app has loading states. Photoshop's filters, AutoCAD's 3D renders, Figma's exports, Excel's heavy recalcs, even Slack's channel switches when a workspace is large — all benefit from "the action ran; now wait for the app to be responsive again before checking verification." Without `wait_for_idle`, every shortcut in this category needs a hand-tuned `sleep` or a flaky verify retry loop.
+- Every complex GUI app has surprise modals. Photoshop's "this image has transparency" prompt, AutoCAD's drawing-recovery dialog, Figma's "you've been kicked from the file" notification, browser auth-required popups. The current schema has no place to declare "before each step, dismiss any obvious modal." Without `pre_step`, every shortcut author re-implements the same dismiss-then-proceed dance.
+- Every complex GUI app eventually requires chained operations. The user says "crop to the red girl, then make her dress green, then export as PNG" — three shortcuts, with state passing between them (the crop region informs the selection bounds, the selection informs the export). The chat LLM handles composition implicitly today; once chains get long enough that the LLM forgets intermediate state, an explicit `produces` / `consumes` contract gives the registry a hook to surface "this shortcut emits a selection; this one expects one."
+
+**Why we're authoring these now, with Photoshop as the first user, instead of waiting:**
+
+- Photoshop is the first app where the absence of these primitives is a hard blocker, not a stylistic gap. Without `wait_for_idle`, the brightness shortcut races the canvas redraw and verifies against stale state. Without `pre_step` modal dismissal, a clean session-start can't be relied on. Without `produces`/`consumes`, the headline demo prompt ("crop, then color-shift, then export") falls apart under realistic chat-LLM context loads.
+- The alternative — "ship Photoshop with workarounds, formalize the primitives later" — locks Photoshop's seed shortcuts into ad-hoc patterns that other contributors would copy. Authoring the primitives upfront keeps the registry's idiom consistent across apps.
+- The cost is small. All three additions are optional fields in the schema. Existing VS Code seeds validate unchanged. The MCP's `verify` dispatcher gains one new case; `pre_step` is read by the chat LLM, not the harness, so no runtime change is required to enable it. Composition is schema-only in v0; type-checking and runtime validation stay parked (parking-lot 4).
+
+**The framing rule going forward:** when a contributor proposes a schema extension, the test is "would Excel benefit? Figma? Slack? AutoCAD?" If the answer is "only this one app needs it," push back on the design — there's almost certainly a more general primitive hiding inside the proposal. The Phase 7a additions pass that test by construction; they were derived from a category-of-apps analysis, not from a Photoshop wishlist.
+
+---
+
 ## What was almost a different product
 
 A few framings West and I considered and rejected. Recording these so the project doesn't accidentally drift back into them:
