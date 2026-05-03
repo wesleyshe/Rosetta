@@ -15,7 +15,8 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0"
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@nut-tree-fork/nut-js": "^4.2.0"
   },
   "devDependencies": {
     "typescript": "^5.4.0",
