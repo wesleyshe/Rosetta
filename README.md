@@ -12,8 +12,8 @@ Website link: TBD (Phase 2).
 
 - `registry/` — static JSON skill registry (Phase 1+)
 - `mcp/` — TypeScript MCP server (Phase 3+)
-- `site/` — static website served from GitHub Pages (Phase 2+)
-- `worker/` — Cloudflare Worker for PR-based skill submissions (Phase 6+)
+- `site/` — static website source, served by the Railway backend (Phase 2+)
+- `worker/` (renaming to `backend/` in Phase 6a) — Railway-hosted Fastify + Prisma + Postgres backend for submissions, telemetry, and lookup (Phase 6a/6b)
 - `docs/` — architecture, design rationale, deferred items
 
 ## License

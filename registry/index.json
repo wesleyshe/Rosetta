@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "apps": [
+    {
+      "id": "vscode",
+      "display_name": "Visual Studio Code",
+      "platforms": ["macos", "windows", "linux"],
+      "tracked_versions": ["1.85+"],
+      "skill_count": 8,
+      "last_updated": "2026-05-03"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "id": "vscode",
+  "display_name": "Visual Studio Code",
+  "category": "code-editor",
+  "platforms": ["macos", "windows", "linux"],
+  "detection": {
+    "macos": { "bundle_id": "com.microsoft.VSCode" },
+    "windows": { "process_name": "Code.exe" },
+    "linux": { "binary": "code" }
+  },
+  "search_first_supported": true,
+  "command_palette_shortcut": {
+    "macos": "cmd+shift+p",
+    "windows": "ctrl+shift+p",
+    "linux": "ctrl+shift+p"
+  },
+  "vendor_friendly": "friendly",
+  "locale": "en",
+  "agent_primer": "VS Code is a tab-based code editor built on Electron. Key UI elements:\n\n- **Editor area** (center): files open as tabs across the top; one tab is active. Multi-pane splits (vertical/horizontal) are supported. The active editor is the verification target for most file/edit operations.\n- **Sidebar** (left, toggleable): tabbed view containing **Explorer** (file tree), **Search** (cross-project search), **Source Control** (Git), **Run and Debug**, and **Extensions**. Toggle with `cmd+b` (macOS) / `ctrl+b` (Windows, Linux).\n- **Activity Bar** (far left, vertical icon strip): switches between sidebar tabs.\n- **Terminal panel** (bottom, toggleable): integrated shell. Toggle with `` ctrl+` `` on every platform (no `cmd` variant — backtick lives on `ctrl` on macOS too). Multiple terminals stack as tabs within the panel.\n- **Status bar** (very bottom): shows branch name, problems/errors count, language mode, encoding, and line/column. Clicking a status-bar element triggers its corresponding command (e.g., clicking the branch name opens the branch picker).\n- **Command palette** (`cmd+shift+p` / `ctrl+shift+p`): the canonical search-first action surface. Any command — including extension-contributed commands — can be invoked by typing its name. Prefer this over menu navigation or raw keyboard shortcuts when the action's name is known; it survives keybinding changes between versions.\n\nInteraction conventions:\n\n- **Quick Open** (`cmd+p` / `ctrl+p`): file-name fuzzy search. Type a file name and press enter to open. Supports `@symbol` for symbol jumps within a file and `:line` for go-to-line.\n- **Keyboard shortcuts** mostly follow the platform's modifier conventions: `cmd` on macOS, `ctrl` on Windows and Linux. Authoring shortcut JSON: use the per-platform `keys` map for any combo that differs across platforms.\n- **File operations** (open, save, close) verify cleanly via the file system: a saved file's existence + content hash is a robust `file_check` target. Editor-state operations (active tab, cursor position, selection) verify via the AX tree (`ax_tree_assertion`).\n- **Modal flows** (rename symbol, refactor preview, command palette open) put a focused widget in the AX tree; verify by asserting the widget's presence (and value, when applicable).\n- **Dirty-state indicator**: an unsaved file shows a filled dot on its tab; a saved file shows the close (×) icon. Useful for verifying save success without a `file_check`.\n\nWhen authoring or selecting a shortcut, prefer search-first methods over raw keybinds where the action's command name is stable."
+}

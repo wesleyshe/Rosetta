@@ -1,6 +1,6 @@
 # registry/
 
-Static JSON skill registry. Served as-is via GitHub Pages.
+Static JSON skill registry. Source of truth lives in this folder under Git. Served as-is by the Railway backend (which reads it off the deploy's disk).
 
 Layout (lands in Phase 1 — see `PLAN.md`):
 

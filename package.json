@@ -1,0 +1,13 @@
+{
+  "name": "rosetta-tooling",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Repo-root tooling for the Rosetta registry. The MCP server and Railway backend each have their own package.json.",
+  "scripts": {
+    "validate-registry": "node scripts/validate-registry.mjs"
+  },
+  "devDependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1"
+  }
+}

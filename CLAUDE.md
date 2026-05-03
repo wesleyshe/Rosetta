@@ -10,7 +10,7 @@ A community-shared online registry of "skills" (semantic action sequences with b
 
 **Phase: Pre-code, design locked.** All major architectural decisions made. See `PLAN.md` for execution phases. See `docs/architecture.md` for full design.
 
-No code exists yet. The repo currently holds only `CLAUDE.md`, `PLAN.md`, and `docs/`. Read `docs/architecture.md` before writing any code — it is the canonical source for schema, MCP tools, seed skills, and failure recovery flows. `docs/design-rationale.md` records why each decision was made; consult it before reconsidering one.
+Repo holds `CLAUDE.md`, `PLAN.md`, `README.md`, `LICENSE`, and `docs/`, plus stub READMEs in `registry/`, `mcp/`, `site/`, and `worker/` (the `worker/` folder will be renamed to `backend/` per the 2026-05-02 backend pivot). Read `docs/architecture.md` before writing any code — it is the canonical source for schema, MCP tools, seed skills, failure recovery flows, and the Postgres schema. `docs/design-rationale.md` records why each decision was made; consult it before reconsidering one.
 
 ## Commands
 
@@ -25,25 +25,30 @@ Planned per `PLAN.md`:
 
 ## What this project is (one paragraph)
 
-Two seed skills (text blobs the user pastes into their desktop AI client) plus one MCP server (one-line install) plus one hosted JSON registry. Seed skill 1 ("use") tells the agent to look up skills from the registry and execute them. Seed skill 2 ("explore") tells the agent to map an app and contribute new skills back. The registry is a static GitHub-hosted JSON dataset, contribution via PR. Target clients: desktop AI chat apps that support MCP (Claude Desktop, Claude Code, Cursor, ChatGPT Desktop, etc.). Web chat clients are explicitly out of scope for v0.
+Two seed skills (text blobs the user pastes into their desktop AI client) plus one MCP server (one-line install) plus one hosted JSON spec store plus a small Railway-hosted backend. Seed skill 1 ("use") tells the agent to look up skills from the registry and execute them. Seed skill 2 ("explore") tells the agent to map an app and contribute new skills back. Specs live in static JSON on GitHub Pages; runtime stats live in Postgres on Railway and are merged into lookup responses by the backend. Submissions go through an LLM-based prompt-injection reviewer and auto-merge to the spec store. Quality is determined post-hoc by hit rate (verification-pass percentage), not by upfront human review. Target clients: desktop AI chat apps that support MCP (Claude Desktop, Claude Code, Cursor, ChatGPT Desktop, etc.). Web chat clients are explicitly out of scope for v0.
 
 ## Architecture summary
 
-Three pieces:
+Three hosted pieces (all on Railway, deployed from the same Git repo) plus the local MCP:
 
-1. **Registry** — static JSON files in this repo, served via GitHub Pages CDN. One folder per app: `meta.json`, `workflow.json`, `shortcuts.json`. Contributions land via PRs created from a web upload form (Cloudflare Worker or similar).
-2. **MCP server** — single bundled binary, installed via `npx @rosetta-skills/mcp` (or equivalent — final npm name TBD if `rosetta` is taken). Exposes registry lookup, computer-control (input, screenshot, accessibility tree), verification, and submission tools. Cross-platform (macOS, Windows, Linux).
-3. **Static website** — two views per app: human-readable docs view, and the raw JSON. Plus copy-to-clipboard boxes for the two seed skills.
+1. **Spec store** — JSON files in this repo at `registry/apps/{app_id}/`: `meta.json` (incl. `agent_primer` markdown), `workflow.json`, `shortcuts.json`. Git is the source of truth. Specs are immutable contracts. Runtime metadata (use_count, success_rate, etc.) is NOT stored here.
+2. **Railway service (`backend/`)** — Fastify TypeScript service, deployed from the repo. Serves the static website (`site/`), the raw spec JSON, the per-app generated `skill.md` (agent-readable view rendered from JSON), and the API endpoints: `POST /submit` (agent prompt-injection reviewer + GitHub PR auto-merge), `POST /report-execution` (telemetry), `GET /lookup` (merges spec JSON + live stats), GitHub OAuth callback. On every auto-merged submission, Railway redeploys via its GitHub integration; new specs go live in ~1 minute.
+3. **Postgres on Railway** — `Execution` events, aggregated `ShortcutStats`, `Contributor` records, `Submission` audit rows. Specs are NOT in Postgres.
+4. **MCP server (`mcp/`, local on user's desktop)** — single bundled binary, installed via `npx @rosetta-skills/mcp` (final npm name TBD). Exposes registry lookup, computer-control, verification, submission, execution-reporting, and explore-session tools. Maintains a local explore-session state file at `~/.config/rosetta-mcp/sessions/{app_id}.json` for budget tracking and resume. Cross-platform.
 
 Full design lives in `docs/architecture.md`. Read that before writing code.
 
 ## Tech stack (decided)
 
 - **MCP server:** TypeScript, using `@modelcontextprotocol/sdk`. Distributed via npm so users install with `npx`.
-- **Registry storage:** GitHub repo, JSON files, served as static assets via GitHub Pages.
-- **Website:** static HTML/CSS/JS, no framework. Hosted on GitHub Pages (same repo).
-- **Submission flow:** Cloudflare Worker (or Vercel Edge Function) that takes uploads and creates GitHub PRs via the GitHub API.
-- **Identity:** GitHub OAuth for both contributors and explorer-skill users. No anonymous submissions.
+- **Spec storage:** Git repo. JSON files at `registry/apps/{app_id}/`. Source of truth.
+- **Backend (`backend/`):** TypeScript + Fastify + Prisma. Deployed to Railway. Serves static site + spec JSON + generated `skill.md` + API endpoints. Same Fastify-style + Prisma + Postgres pattern used in the prior Claw_Street_Bets project. **No GitHub Pages.** Single host.
+- **Database:** Postgres on Railway. Stores `Execution` events, aggregated `ShortcutStats`, `Contributor` records, and `Submission` audit rows. Prisma schema sketch in `docs/architecture.md`.
+- **Website:** static HTML/CSS/JS, no framework. Source in `site/`, served by the Railway backend.
+- **Submission flow:** MCP calls `POST /submit` on the Railway backend. Backend runs the agent prompt-injection reviewer, then uses the contributor's GitHub OAuth token to open a PR and auto-merge it. Railway redeploys on merge.
+- **Telemetry flow:** MCP calls `POST /report-execution` after every shortcut run. No GitHub auth required; `install_id` (locally-minted UUID) is used for sybil-resistance rate limiting.
+- **Explore flow:** MCP maintains a local session state file per app. Budget is wall-clock minutes (default 30). Three finding statuses: `drafted`, `verified`, `rejected_by_self`. Session ends on budget exhaustion; state persists for resume. Four new MCP tools (`explore.start_session`, `explore.save_finding`, `explore.budget_status`, `explore.submit_findings`).
+- **Identity:** GitHub OAuth required for SUBMISSION, NOT for USE. Use is anonymous (with `install_id` for rate-limiting). Submissions carry `contributor_id` (GitHub username).
 - **License:** MIT (most permissive for community contributions).
 
 ## Conventions
@@ -60,7 +65,7 @@ Full design lives in `docs/architecture.md`. Read that before writing code.
 
 ## Out of scope for v0
 
-See `docs/parking-lot.md` for the full list. The big ones: web chat client support, payment / contributor reward economy, automated skill decay detection, prompt-injection / bad-skill defenses beyond GitHub PR review, cross-skill composition contracts.
+See `docs/parking-lot.md` for the full list. The big ones: web chat client support, payment / contributor reward economy, prompt-injection / bad-skill defenses beyond the v0 LLM reviewer + hit-rate filter, cross-skill composition contracts. Note: automated skill decay detection is *partially* in scope now — `success_rate` populates in v0 via `registry.report_execution`. Heavyweight cron-based re-validation is still parked.
 
 ## Update protocol (self-maintenance)
 
@@ -89,3 +94,8 @@ When updating, keep this file under ~250 lines. If it grows past that, factor de
 - **2026-05-02** — Added Claude Code preamble; added `Commands` section noting pre-code status and the planned tooling per `PLAN.md`; surfaced verification-first-class, search-first preference, and the VS-Code-then-Photoshop ordering as explicit conventions (previously implicit in `docs/design-rationale.md`).
 - **2026-05-02** — Phase 0 scaffolding landed (substeps 1–6): `git init -b main`, `README.md`, `LICENSE` (MIT, copyright "West"), `.gitignore`, and stub `README.md` in each of `registry/`, `mcp/`, `site/`, `worker/`. Substep 7 (create GitHub repo and push) deferred — pending repo-name decision and user-side `gh` auth.
 - **2026-05-02** — Phase 0 complete. GitHub repo published at `https://github.com/wesleyshe/Rosetta` (public, personal account); `origin/main` synced. Phase 0 fully `[x]`.
+- **2026-05-02** — Backend pivot. Architecture moves from "GitHub-as-database" to a hybrid: specs stay in Git, runtime stats move to Postgres on Railway. Cloudflare Worker dropped in favor of a Fastify + Prisma backend (matches the existing Claw_Street_Bets pattern). Submissions are now auto-merged after an LLM-based prompt-injection reviewer; quality is determined post-hoc by verification-pass hit-rate via a new `registry.report_execution` MCP tool and `Execution` / `ShortcutStats` Postgres tables. Auth split clarified: OAuth required for submission, NOT for use; sybil resistance on the use path comes from a locally-minted `install_id`. The `worker/` folder will be renamed to `backend/`. Runtime metadata fields (use_count, success_rate, reliability_score, last_validated) are no longer in shortcut JSON. Affected docs: `docs/architecture.md`, `docs/design-rationale.md`, `docs/parking-lot.md`, `PLAN.md`.
+- **2026-05-03** — Final design lock-in after the alignment pass. Three changes from the 2026-05-02 state:
+   1. **GitHub Pages dropped.** The Railway backend now serves both the static site AND the API. Single host, single deploy, single source-of-truth. Specs are still authored in Git; Railway reads them off the deploy's disk and redeploys on merge.
+   2. **`agent_primer` field added to `meta.json`.** Markdown-friendly free-text orientation blob covering app terminology and element layout. Surfaces in the generated per-app `skill.md` agent-context endpoint.
+   3. **Explore is budget-bounded and resumable in v0.** Wall-clock-minutes budget (default 30, reserve 5 for submission), local session state file at `~/.config/rosetta-mcp/sessions/{app_id}.json`, three finding statuses (`drafted`, `verified`, `rejected_by_self`), session-end policy (b) (auto-end on budget exhaustion, state persists for resume, fresh start requires `{ reset: true }`). Four new MCP tools: `explore.start_session`, `explore.save_finding`, `explore.budget_status`, `explore.submit_findings`. Adds Phase 4 substeps and an explore-skill text rewrite. JSON is source of truth, `skill.md` is a generated read-only view rendered from `meta.json` + `workflow.json` + `shortcuts.json`.

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "app_id": "vscode",
+  "open": [
+    { "type": "open_app", "platform_specific": true }
+  ],
+  "default_dispatch_strategy": [
+    "search_first_if_supported",
+    "shortcut_lookup",
+    "menu_navigation",
+    "vision_fallback"
+  ],
+  "verification_default": "ax_tree_assertion",
+  "failure_recovery": [
+    "retry_same_shortcut_once",
+    "fallback_to_alternative_method",
+    "escalate_to_explorer",
+    "surface_to_user"
+  ]
+}

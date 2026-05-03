@@ -1,0 +1,383 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/wesleyshe/Rosetta/main/registry/schemas/shortcut.schema.json",
+  "title": "Rosetta App Shortcuts",
+  "description": "Atomic, contributor-declared capabilities for an app. One file per app at registry/apps/{app_id}/shortcuts.json. Multiple shortcuts may match the same intent; the agent picks by metadata + live stats. Runtime stats (use_count, success_count, success_rate, reliability_score, last_validated) are NOT in this schema — they live in the Postgres ShortcutStats table and are merged in by registry.lookup. NOTE: the action sub-schemas in $defs (keyAction, keyComboAction, typeTextAction, clickAction, menuAction, openAppAction) are duplicated verbatim between workflow.schema.json and shortcut.schema.json. Any change to action types must touch both files. The validate-registry script lints that these $defs are byte-identical.",
+
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "app_id", "shortcuts"],
+
+  "properties": {
+    "schema_version": { "const": 1 },
+    "app_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$"
+    },
+    "shortcuts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/shortcut" }
+    }
+  },
+
+  "$defs": {
+    "platform": {
+      "type": "string",
+      "enum": ["macos", "windows", "linux"]
+    },
+
+    "shortcut": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "intent",
+        "parameters",
+        "platforms",
+        "app_versions",
+        "method",
+        "actions",
+        "verification",
+        "metadata"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
+          "description": "Stable kebab-case ID. Unique within this app's shortcuts.json."
+        },
+        "intent": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Plain-language statement of what the shortcut does. Used for fuzzy intent matching by registry.lookup."
+        },
+        "parameters": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/parameter" },
+          "description": "Inputs the agent must supply at execution time. May be empty."
+        },
+        "platforms": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/platform" },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "app_versions": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1,
+          "description": "Free-form version range strings (e.g. \"1.85+\", \"24-27\"). Resolution is done by the backend; the schema doesn't constrain syntax in v0."
+        },
+        "method": {
+          "type": "string",
+          "enum": ["shortcut", "search", "menu", "click", "vision"],
+          "description": "How the shortcut accomplishes the intent. Lets ranking favor classes (e.g. search-first over raw key combos)."
+        },
+        "actions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/action" },
+          "minItems": 1
+        },
+        "verification": { "$ref": "#/$defs/verification" },
+        "risk": {
+          "type": "string",
+          "enum": ["safe", "destructive", "financial", "external_communication"],
+          "default": "safe",
+          "description": "Parking-lot item 10: optional risk classification. Use seed skill should pause for confirmation on non-safe values (informal in v0)."
+        },
+        "metadata": { "$ref": "#/$defs/metadata" }
+      }
+    },
+
+    "parameter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "type"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "snake_case. Substituted into action templates as {name}."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["string", "number", "boolean"]
+        },
+        "required": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Immutable, contributor-declared. Runtime fields (use_count, success_count, success_rate, reliability_score, last_validated) live in Postgres and MUST NOT appear here.",
+      "required": [
+        "contributor_id",
+        "payment_destination",
+        "token_cost_estimate",
+        "speed_estimate_ms",
+        "submitted_at"
+      ],
+      "properties": {
+        "contributor_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "GitHub username, or the literal string \"seed\" for hand-curated v0 entries."
+        },
+        "payment_destination": {
+          "type": ["string", "null"],
+          "description": "Reserved (parking-lot item 2). Always null in v0; populated when the payment economy ships. Field exists from day one — no backfill."
+        },
+        "token_cost_estimate": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Approximate input+output tokens consumed when the agent runs this shortcut. Hand-estimated; refined by usage data later."
+        },
+        "speed_estimate_ms": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Approximate wall-clock milliseconds from action start to verification pass."
+        },
+        "submitted_at": {
+          "type": "string",
+          "format": "date",
+          "description": "Author-declared YYYY-MM-DD. Distinct from the actual merge timestamp (which is in the Postgres Submission audit row)."
+        }
+      }
+    },
+
+    "action": {
+      "oneOf": [
+        { "$ref": "#/$defs/keyAction" },
+        { "$ref": "#/$defs/keyComboAction" },
+        { "$ref": "#/$defs/typeTextAction" },
+        { "$ref": "#/$defs/clickAction" },
+        { "$ref": "#/$defs/menuAction" },
+        { "$ref": "#/$defs/openAppAction" }
+      ]
+    },
+    "keyAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "key"],
+      "properties": {
+        "type": { "const": "key" },
+        "key": { "type": "string", "minLength": 1 }
+      }
+    },
+    "keyComboAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "keys"],
+      "properties": {
+        "type": { "const": "key_combo" },
+        "keys": {
+          "description": "Either a single string (platform-resolved by the MCP) or a per-platform map.",
+          "oneOf": [
+            { "type": "string", "minLength": 1 },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "minProperties": 1,
+              "properties": {
+                "macos": { "type": "string", "minLength": 1 },
+                "windows": { "type": "string", "minLength": 1 },
+                "linux": { "type": "string", "minLength": 1 }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "typeTextAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "text"],
+      "properties": {
+        "type": { "const": "type_text" },
+        "text": {
+          "type": "string",
+          "description": "May contain {parameter_name} placeholders that the MCP substitutes at execution time."
+        }
+      }
+    },
+    "clickAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "target"],
+      "properties": {
+        "type": { "const": "click" },
+        "target": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["x", "y"],
+              "properties": {
+                "x": { "type": "number" },
+                "y": { "type": "number" }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["ax_path"],
+              "properties": {
+                "ax_path": { "type": "string", "minLength": 1 }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "menuAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "path"],
+      "properties": {
+        "type": { "const": "menu" },
+        "path": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1
+        }
+      }
+    },
+    "openAppAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "oneOf": [
+        { "required": ["app_id"], "not": { "required": ["platform_specific"] } },
+        { "required": ["platform_specific"], "not": { "required": ["app_id"] } }
+      ],
+      "properties": {
+        "type": { "const": "open_app" },
+        "app_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$"
+        },
+        "platform_specific": { "type": "boolean" }
+      }
+    },
+
+    "verification": {
+      "oneOf": [
+        { "$ref": "#/$defs/axTreeAssertion" },
+        { "$ref": "#/$defs/domAssertion" },
+        { "$ref": "#/$defs/screenshotDiff" },
+        { "$ref": "#/$defs/fileCheck" },
+        { "$ref": "#/$defs/valueCompare" },
+        { "$ref": "#/$defs/interpretCheck" }
+      ]
+    },
+    "axTreeAssertion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "rule"],
+      "properties": {
+        "type": { "const": "ax_tree_assertion" },
+        "rule": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Named rule the verify() implementation knows how to evaluate against the AX tree (e.g. \"active_editor_filename_contains\")."
+        },
+        "value": {
+          "type": "string",
+          "description": "Argument for the rule. May contain {parameter_name} placeholders."
+        }
+      }
+    },
+    "domAssertion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "selector"],
+      "properties": {
+        "type": { "const": "dom_assertion" },
+        "selector": { "type": "string", "minLength": 1 },
+        "value": { "type": "string" }
+      }
+    },
+    "screenshotDiff": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "screenshot_diff" },
+        "region": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["x", "y", "width", "height"],
+          "properties": {
+            "x": { "type": "number" },
+            "y": { "type": "number" },
+            "width": { "type": "number", "exclusiveMinimum": 0 },
+            "height": { "type": "number", "exclusiveMinimum": 0 }
+          }
+        },
+        "max_pixel_diff_ratio": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.02
+        }
+      }
+    },
+    "fileCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "path"],
+      "properties": {
+        "type": { "const": "file_check" },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "description": "May contain {parameter_name} placeholders."
+        },
+        "exists": { "type": "boolean" },
+        "hash": {
+          "type": "string",
+          "description": "Hex sha256 of the file's contents."
+        },
+        "content_contains": { "type": "string" }
+      }
+    },
+    "valueCompare": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "left", "right"],
+      "description": "Compare two values. String values in left and right support {parameter_name} placeholder substitution at execution time, matching the convention in typeText / axTreeAssertion / fileCheck.",
+      "properties": {
+        "type": { "const": "value_compare" },
+        "left": {},
+        "right": {},
+        "comparator": {
+          "type": "string",
+          "enum": ["equals", "contains", "starts_with", "ends_with"],
+          "default": "equals"
+        }
+      }
+    },
+    "interpretCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "question", "expected"],
+      "properties": {
+        "type": { "const": "interpret_check" },
+        "question": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Natural-language question passed to the vision/audio model."
+        },
+        "expected": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Expected answer fragment. Match is case-insensitive substring in v0."
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/wesleyshe/Rosetta/main/registry/schemas/meta.schema.json",
+  "title": "Rosetta App Meta",
+  "description": "Per-app metadata: identity, platform detection, agent orientation. One file per app at registry/apps/{app_id}/meta.json.",
+
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "display_name",
+    "platforms",
+    "detection",
+    "agent_primer"
+  ],
+
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "description": "Locked at 1 for v0. Major-version bumps signal breaking changes."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
+      "description": "Stable kebab-case identifier. Must match the folder name under registry/apps/."
+    },
+    "display_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "category": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional descriptive grouping (e.g. \"code-editor\", \"image-editor\"). Informational; not used for ranking."
+    },
+    "platforms": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/platform" },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "detection": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "description": "Per-platform hints that os.app_info uses to detect installed version + identity. At least one platform key required.",
+      "properties": {
+        "macos": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "bundle_id": { "type": "string", "minLength": 1 },
+            "binary": { "type": "string", "minLength": 1 }
+          }
+        },
+        "windows": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "process_name": { "type": "string", "minLength": 1 },
+            "binary": { "type": "string", "minLength": 1 }
+          }
+        },
+        "linux": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "binary": { "type": "string", "minLength": 1 },
+            "process_name": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "search_first_supported": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when the app exposes a command palette / fuzzy action search. Drives the search_first_if_supported dispatch step."
+    },
+    "command_palette_shortcut": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "description": "Per-platform key combo to open the command palette. Required if search_first_supported is true and palette differs from a single-key default.",
+      "properties": {
+        "macos": { "type": "string", "minLength": 1 },
+        "windows": { "type": "string", "minLength": 1 },
+        "linux": { "type": "string", "minLength": 1 }
+      }
+    },
+    "vendor_friendly": {
+      "type": "string",
+      "enum": ["friendly", "unknown", "hostile"],
+      "default": "unknown",
+      "description": "Parking-lot item 5: vendor stance toward automation. Hostile vendors (anti-bot, captcha walls) tend to score low on reliability."
+    },
+    "locale": {
+      "type": "string",
+      "default": "en",
+      "minLength": 1,
+      "description": "Parking-lot item 9: locale that meta + shortcuts target. v0 assumes \"en\"."
+    },
+    "agent_primer": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Markdown-friendly free-text orientation for agents: app terminology, element layout, canonical interaction patterns. Rendered verbatim into apps/{app_id}/skill.md by the backend."
+    }
+  },
+
+  "if": {
+    "properties": { "search_first_supported": { "const": true } },
+    "required": ["search_first_supported"]
+  },
+  "then": {
+    "required": ["command_palette_shortcut"]
+  },
+
+  "$defs": {
+    "platform": {
+      "type": "string",
+      "enum": ["macos", "windows", "linux"]
+    }
+  }
+}

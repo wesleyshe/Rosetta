@@ -1,0 +1,195 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/wesleyshe/Rosetta/main/registry/schemas/workflow.schema.json",
+  "title": "Rosetta App Workflow",
+  "description": "Generic execution harness for an app: how to open it, how to dispatch an intent, how to verify, how to recover. One file per app at registry/apps/{app_id}/workflow.json. NOTE: the action sub-schemas in $defs (keyAction, keyComboAction, typeTextAction, clickAction, menuAction, openAppAction) are duplicated verbatim between workflow.schema.json and shortcut.schema.json. Any change to action types must touch both files. The validate-registry script lints that these $defs are byte-identical.",
+
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "app_id",
+    "open",
+    "default_dispatch_strategy",
+    "verification_default",
+    "failure_recovery"
+  ],
+
+  "properties": {
+    "schema_version": { "const": 1 },
+    "app_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
+      "description": "Must match the parent folder under registry/apps/ and the id in meta.json."
+    },
+    "open": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/action" },
+      "minItems": 1,
+      "description": "Action sequence that brings the app to a usable state when not already running. Most apps are a single open_app step; some need extra steps (dismiss splash, switch workspace)."
+    },
+    "default_dispatch_strategy": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "search_first_if_supported",
+          "shortcut_lookup",
+          "menu_navigation",
+          "vision_fallback"
+        ]
+      },
+      "minItems": 1,
+      "uniqueItems": true,
+      "description": "Ordered list of methods to try, cheapest first. The agent walks this until something resolves."
+    },
+    "verification_default": {
+      "type": "string",
+      "enum": [
+        "ax_tree_assertion",
+        "dom_assertion",
+        "screenshot_diff",
+        "file_check",
+        "value_compare",
+        "interpret_check"
+      ],
+      "description": "Documents the verification family this app primarily uses. Informational only — not a runtime fallback, since shortcut.verification is required on every shortcut."
+    },
+    "failure_recovery": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "retry_same_shortcut_once",
+          "fallback_to_alternative_method",
+          "escalate_to_explorer",
+          "surface_to_user"
+        ]
+      },
+      "minItems": 1,
+      "uniqueItems": true,
+      "description": "Ordered list, least to most expensive. The chat LLM applies judgment within this menu when verification fails (see docs/architecture.md § Failure recovery flow)."
+    }
+  },
+
+  "$defs": {
+    "action": {
+      "oneOf": [
+        { "$ref": "#/$defs/keyAction" },
+        { "$ref": "#/$defs/keyComboAction" },
+        { "$ref": "#/$defs/typeTextAction" },
+        { "$ref": "#/$defs/clickAction" },
+        { "$ref": "#/$defs/menuAction" },
+        { "$ref": "#/$defs/openAppAction" }
+      ]
+    },
+    "keyAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "key"],
+      "properties": {
+        "type": { "const": "key" },
+        "key": { "type": "string", "minLength": 1 }
+      }
+    },
+    "keyComboAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "keys"],
+      "properties": {
+        "type": { "const": "key_combo" },
+        "keys": {
+          "description": "Either a single string (platform-resolved by the MCP) or a per-platform map.",
+          "oneOf": [
+            { "type": "string", "minLength": 1 },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "minProperties": 1,
+              "properties": {
+                "macos": { "type": "string", "minLength": 1 },
+                "windows": { "type": "string", "minLength": 1 },
+                "linux": { "type": "string", "minLength": 1 }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "typeTextAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "text"],
+      "properties": {
+        "type": { "const": "type_text" },
+        "text": {
+          "type": "string",
+          "description": "May contain {parameter_name} placeholders that the MCP substitutes at execution time."
+        }
+      }
+    },
+    "clickAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "target"],
+      "properties": {
+        "type": { "const": "click" },
+        "target": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["x", "y"],
+              "properties": {
+                "x": { "type": "number" },
+                "y": { "type": "number" }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["ax_path"],
+              "properties": {
+                "ax_path": { "type": "string", "minLength": 1 }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "menuAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "path"],
+      "properties": {
+        "type": { "const": "menu" },
+        "path": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1
+        }
+      }
+    },
+    "openAppAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "oneOf": [
+        { "required": ["app_id"], "not": { "required": ["platform_specific"] } },
+        { "required": ["platform_specific"], "not": { "required": ["app_id"] } }
+      ],
+      "properties": {
+        "type": { "const": "open_app" },
+        "app_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
+          "description": "Explicit app_id form (used in shortcut.actions[])."
+        },
+        "platform_specific": {
+          "type": "boolean",
+          "description": "Workflow.open[] form: signals the MCP to use the app's detection block to launch."
+        }
+      }
+    }
+  }
+}

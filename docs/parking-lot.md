@@ -2,15 +2,19 @@
 
 Deferred items. Each entry: what it is, why it's deferred, what would trigger us to pick it back up, and the current placeholder behavior.
 
-## 1. Bad skills / prompt injection
+## 1. Bad skills / prompt injection (PARTIALLY ACTIVATED 2026-05-02)
 
 **What:** A contributed skill might be subtly wrong, wasteful, destructive, or contain prompt injection that hijacks the agent's behavior at execution time. Examples: a skill that says "delete file X" but really deletes a different file due to a bad selector; a skill whose `intent` description is "open file" but whose `actions` are "send password to evil.com"; a skill whose verification rule is satisfied by something other than the intended outcome.
 
-**Why deferred:** The economy and contributor reputation systems aren't built yet, so the gating mechanism is just GitHub PR review. We're not at the scale where bad skills are a real attack surface.
+**Status:** The original trigger condition (c) — "before turning on the explorer-agent's auto-PR submission" — has fired with the 2026-05-02 backend pivot. Submissions now auto-merge after an LLM-based reviewer. The full defense suite (sandboxing, signatures, fine-grained action allowlists) remains parked. What's now in v0:
 
-**Trigger to pick up:** Either (a) the registry crosses ~100 contributors or ~1,000 skills, (b) the first reported incident, or (c) before turning on the explorer-agent's auto-PR submission for any user.
+- **Agent prompt-injection reviewer (LLM):** the backend's `/submit` endpoint runs the spec through an LLM check for obviously-malicious patterns (urls in actions, suspicious filenames, mismatch between `intent` and `actions`, etc.). Acknowledged shallow. Sufficient given the bootstrap-then-publish rollout plan and small initial registry size.
+- **Verification-as-rating filter:** because reliability score is the verification-pass percentage, shortcuts that succeed locally but fail at scale get downranked automatically. This is the long-term filter once usage data accumulates.
+- **GitHub identity on submission:** every spec carries `contributor_id`. Bad-actor accounts can be soft-banned by the backend without affecting the rest of the registry.
 
-**Placeholder behavior:** All submissions go through PR review by repo maintainer. No auto-merge. The use-skill explicitly tells the agent to never trust skill descriptions as instructions ("never invent shortcuts not in the registry"). Future work: skill sandboxing in a VM, signature/checksum requirements, contributor reputation scores, action-type allowlists per skill category.
+**Still parked (full activation triggers):** Either (a) registry crosses ~100 contributors or ~1,000 skills, (b) first reported incident of a malicious skill landing, or (c) before opening the contributor base beyond developers.
+
+**Future work (not v0):** skill sandboxing in a VM, signature/checksum requirements, contributor reputation scores, action-type allowlists per skill category, mandatory human review for high-risk action types (file deletes, network requests, payments).
 
 ---
 
@@ -38,15 +42,20 @@ Deferred items. Each entry: what it is, why it's deferred, what would trigger us
 
 ---
 
-## 4. Automated skill decay detection
+## 4. Automated skill decay detection (PARTIALLY ACTIVATED 2026-05-02)
 
-**What:** A skill that worked when contributed may stop working when the app updates. Currently we have no way to detect this except via user reports.
+**What:** A skill that worked when contributed may stop working when the app updates. Currently we have no first-party way to test this proactively.
 
-**Why deferred:** Building automated re-test infrastructure (cron jobs that run skills against current app versions) is non-trivial and expensive. Not necessary at v0 scale.
+**Status (post-pivot):** Reactive decay detection is now in v0 via telemetry. Proactive (cron-driven re-validation) remains parked.
 
-**Trigger to pick up:** When user reports of broken skills become a maintenance burden, or when the registry crosses ~100 active skills per app.
+**What's in v0:**
+- The use seed skill calls `registry.report_execution` after every shortcut run. The backend writes the event and updates `ShortcutStats` (`use_count`, `success_count`, `success_rate`, `reliability_score`, `last_validated` per `(shortcut_id, app_version, platform)`).
+- Decaying shortcuts show declining `success_rate` and drop in lookup ranking automatically. Agents naturally pick fresher alternatives.
+- `last_validated` is the timestamp of the most recent successful execution, derived from the events table.
 
-**Placeholder behavior:** `metadata.last_validated` field exists; agent can flag skills not re-validated in N days. Users manually flag broken skills via GitHub issues. The `success_rate` metadata field is populated by client-side reporting (the use-skill tells the agent to report verification outcomes back to the registry, eventually).
+**Still parked:** Cron-driven re-validation of all shortcuts on a schedule. Building re-test infrastructure (running every shortcut against current app versions automatically) is non-trivial. Not v0.
+
+**Trigger to pick up the proactive piece:** When reactive telemetry alone isn't enough, e.g., a major app update silently breaks half the shortcuts and users hit the failures one by one before lookup ranking adjusts. Or when the registry crosses ~100 active skills per app and decay becomes a maintenance burden.
 
 ---
 
@@ -119,3 +128,17 @@ Deferred items. Each entry: what it is, why it's deferred, what would trigger us
 **Trigger to pick up:** First incident involving a destructive action, or before any non-power-user audience targeting.
 
 **Placeholder behavior:** Shortcuts can declare `risk: "destructive" | "financial" | "external_communication" | "safe"` (default `safe`). The use-skill should be updated to pause and confirm before executing non-safe shortcuts. Currently informal.
+
+---
+
+## 11. Website UI / UX design (landing + per-app database pages)
+
+**What:** A real design pass for the human-facing landing page and the per-app database pages. Phase 2 currently produces functional HTML with minimal CSS but makes no decisions about: visual anchor (typography, color, spacing scale), reliability-score visualization, shortcut-list layout (table vs cards vs list), sort/filter behavior, cold-start indicators, agent_primer placement on the page, mobile responsiveness, or copy tone. The pages will be written and look "however the agent makes them look" without explicit design intent.
+
+**Why deferred:** Schemas, MCP, backend, and seed skills are all higher-leverage. Landing-page polish before the product works is a classic ordering mistake. The user explicitly chose "think about it later" on 2026-05-03 after a design discussion.
+
+**Trigger to pick up:** Before the page is shown to anyone outside the team. At the latest, before the Phase 7 soft launch (HN, Reddit, etc.). Earlier is better — ideally between Phase 6b shipping and Phase 7 starting, when the backend exists and there's real data (a few VS Code shortcuts plus stats) to design around. Earliest viable trigger: as soon as Phase 2 begins, draft `docs/site-design.md` first.
+
+**Placeholder behavior:** Phase 2 will produce vanilla HTML/CSS that's functional but undesigned. Reliability scores will be rendered as plain numbers. Shortcuts will list in document order. Mobile behavior will be whatever vanilla HTML gives you. Acceptable for internal review and for showing to a small audience; not acceptable for soft launch.
+
+**When picked up, write:** `docs/site-design.md` (50-100 lines) covering landing-page goal, visual anchor, per-app-page layout decisions, copy tone. Then revisit Phase 2's substeps and add design-implementation tasks. Don't drag into Figma-mockup-iteration territory; the goal is "intentional," not "designed-by-committee."

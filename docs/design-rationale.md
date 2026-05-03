@@ -57,18 +57,135 @@ The middle ground that doesn't yet exist: a shared, semantic representation of h
 
 ---
 
-## Why GitHub-as-database, not a real DB
+## Why GitHub-as-spec-store, plus a real DB for stats
 
-**Considered:** Postgres on Supabase / Neon / Railway with a web frontend. Or Cloudflare D1.
+**Originally considered:** Postgres on Supabase / Neon / Railway with a web frontend. Or Cloudflare D1.
 
-**Chose static JSON in a Git repo, served by GitHub Pages CDN, because:**
-- Zero hosting cost for v0.
-- Full version history, public auditability, free PR-based moderation.
-- Easy rollback if a bad skill gets in (revert the commit).
-- Forking is trivial. Anyone can run their own instance of the registry.
-- No backend to maintain or pay for.
+**Original v0 decision (made 2026-05-02):** Static JSON in a Git repo, served by GitHub Pages CDN, with PR-based contribution.
 
-**What this costs us:** No transactional features (relevant when payments ship), slower iteration on schema changes, slower lookups than an indexed DB. All acceptable at v0 scale. Migration path to a real DB is straightforward when needed.
+**Amended (2026-05-02):** Hybrid. Specs stay in Git; runtime stats move to Postgres on Railway. The original arguments still hold for the spec side. The original assumption that stats could ride along in the JSON did not survive contact with the actual usage model.
+
+**What stays in Git (immutable spec):**
+- `id`, `intent`, `parameters`, `app_id`, `platforms`, `app_versions`, `method`, `actions`, `verification`, `schema_version`, `contributor_id`, `payment_destination`, `token_cost_estimate`, `speed_estimate_ms`, `submitted_at`.
+- These are contributor-declared, change rarely, and benefit from diff-based review and rollback.
+
+**What lives in Postgres (mutable stats):**
+- `use_count`, `success_count`, `success_rate`, `reliability_score`, `last_validated`, raw `Execution` events.
+- These update on every shortcut execution. Storing them in Git would mean one commit per execution, which is absurd at any real scale.
+
+**Why this split is the right v0 shape, not premature optimization:**
+- The `success_rate` mechanism is the registry's quality signal. Without live stats, ranking falls back to author-declared metadata (gameable) or human review (slow). Neither matches the design goal of agents continuously contributing and consuming with minimal friction.
+- The PR-per-execution alternative was dismissed without serious consideration in the original rationale. On revisit it's clearly unworkable: even at modest usage (one user, ten executions a day) the repo history becomes useless.
+- The pure GitHub-as-database approach forced human review as the only quality gate. Removing the human gate (because the explore-skill auto-submits) requires a different quality gate. Hit-rate is that gate. Hit-rate requires telemetry. Telemetry requires a DB.
+
+**What this costs us:**
+- A backend service to maintain (Railway pays the operational tax, see "Why Railway for the backend").
+- Two stores to keep in sync. Mitigated by treating Git as the source of truth for specs (Postgres references but never overrides) and Postgres as the source of truth for stats (Git never references). The two intersect only at lookup time, where the backend joins them.
+
+---
+
+## Why ratings are verification results, not user votes
+
+**Considered:** A `registry.rate(shortcut_id, score)` MCP tool that lets the agent or user submit a 1-5 rating after each execution.
+
+**Rejected because:**
+- Ratings without authentication are gameable. Spawning fake "success" ratings to push your own (potentially malicious) shortcut to the top costs nothing.
+- Ratings with authentication require GitHub OAuth on the use path, which destroys the "install and go" install funnel.
+- Either choice is bad. Sidestep both: don't have a separate rating signal. Use the verification result that's already part of every shortcut.
+
+**Decision:** The MCP automatically reports `(shortcut_id, verification_result, error_class, app_version, platform, install_id)` to `registry.report_execution` after every execution. Reliability score is "fraction of executions where the bundled verification passed."
+
+**Why this is hard to spoof:**
+- The data point is "verification passed under these conditions," not "user X claims it worked." The verification step depends on actual system state (file existence, AX tree, screenshot diff). Faking a success requires actually running the shortcut and having actual verification pass, which means the shortcut actually works.
+- Sybil resistance comes from per-`install_id` rate limits on `report_execution`. The MCP mints a stable random UUID at first launch and includes it in every report. To pad a shortcut's stats, an attacker would need to spin up many MCP installs, which has real cost.
+
+**What this costs us:**
+- Verification specs that are weak or trivially satisfied will produce noisy stats. Mitigated by the existing convention that verification is first-class — shortcuts with bad verification spec quality is a contributor-quality problem and can be addressed in PR review of the spec itself.
+- Qualitative signals ("worked but did the wrong thing") aren't captured. Acceptable for v0; reserved for a later authenticated feedback channel if needed.
+
+---
+
+## Why we dropped GitHub Pages and went Railway-everywhere
+
+**Originally:** Site on GitHub Pages (free, static CDN, immutable). Backend on Railway. Two hosts.
+
+**Amended (2026-05-03):** Single Railway service serves both the static site and the API. GitHub Pages is not used.
+
+**Why:**
+- **One source of truth at runtime.** Specs are authored in Git (still the source of truth for spec data), and Railway reads them off the deploy's disk. Whichever spec is on `main` is what's served. No "the website hasn't redeployed yet" ambiguity between Pages and Railway.
+- **Operational simplicity.** One host, one deploy log, one place where things can go wrong. The cost of GitHub Pages going stale relative to Railway (e.g., site shows stats from yesterday because Pages cache hasn't busted but the backend has new data) was a real failure mode in the previous design.
+- **The cost objection is gone.** West already pays for Railway. The marginal cost of static traffic on Railway versus free Pages is negligible at v0 scale.
+- **Submission-to-live latency is comparable.** Pages republishes within ~1 minute of a merge; Railway redeploys within ~1 minute of a push to `main` via its GitHub integration. Same order of magnitude.
+
+**What this costs us:**
+- Static traffic now costs (rounding-error). Acceptable.
+- A redeploy on every auto-merged submission. At v0 scale this is fine; if submissions pick up to many per minute, switch to a webhook-driven incremental refresh that avoids full redeploys. Reserved for later.
+
+---
+
+## Why JSON is source of truth, `skill.md` is generated
+
+**Considered:** Author shortcut data as `skill.md` (markdown with embedded structured blocks for actions/verification, à la Claude Code skills) and treat the markdown as canonical. JSON is a parsed view if needed.
+
+**Considered:** Author both. JSON for the MCP, hand-written markdown for agent context.
+
+**Chose JSON-as-source, skill.md-as-generated because:**
+- Validation is much easier on a single shape. JSON schema (via ajv) gives us guaranteed conformance for actions, verification rules, and parameter types. Markdown-as-source would require a custom parser plus a schema for the embedded blocks, doubling the validation surface.
+- Authoring two parallel files (JSON + hand-written markdown) creates drift. The markdown will fall out of date relative to the JSON within a week.
+- The `skill.md` agent-context view is a thin render: `meta.json` (mostly the `agent_primer` field) + `workflow.json` summary + `shortcuts.json` intent list. Server-side template, no logic, never authored directly.
+- This pattern matches what works in Claude Code's own skill system: structured data drives both human-readable and machine-readable representations.
+
+**What this costs us:**
+- The markdown is less expressive than hand-authored docs would be. Mitigated by the `agent_primer` field, which is itself a free-text markdown blob; contributors can write whatever orienting context they want there, and it lands in `skill.md` as the lead section.
+- We can't do markdown-only edits to fix a typo in agent-facing docs without re-touching `meta.json`. Acceptable; that's the same coupling that other configuration-as-code systems have.
+
+---
+
+## Why explore is budget-bounded and resumable in v0
+
+**Considered:** Single-session explore. The agent runs as long as it wants, submits as it goes, and stops when it's done. State is conversational only.
+
+**Rejected because:**
+- Real apps (Photoshop, AutoCAD, Excel) have hundreds of capabilities. A serious mapping pass takes hours, not minutes. Forcing a single uninterrupted session pushes the user toward either a shallow pass or a budget-blowing marathon.
+- Without resume, the user pays exploration cost twice for the same app every time they want to extend coverage. The skill becomes "explore the same first 10 features in a different order each session."
+- Without budget tracking, the agent has no incentive to reserve resources for submission. Late-stage exploration runs out of budget before findings are uploaded; the work is wasted.
+
+**Decision (2026-05-03):**
+- Wall-clock minutes as the budget unit (not tokens). The MCP can't reliably observe the chat client's token usage, but it can observe wall-clock time. Defaults to 30 minutes if the user doesn't specify. `submission_reserve_minutes` defaults to 5.
+- Local session state file per app at `~/.config/rosetta-mcp/sessions/{app_id}.json`. Findings, completed intents, and abandoned intents persist across sessions.
+- Three finding statuses: `drafted` (transient), `verified` (passed bundled verification, eligible for submission), `rejected_by_self` (failed verification or no clean path, recorded so future sessions don't re-attempt).
+- Session-end policy (b) of three options considered: budget-exhaustion auto-ends the session, state persists, a fresh `explore.start_session` resumes from the file unless `{ reset: true }` is passed.
+
+**Why not (a) sessions never end:**
+- Indefinite session lifetimes mean budget tracking has no anchor; "minutes used" becomes meaningless.
+
+**Why not (c) explicit close required:**
+- Pushes management burden onto the user. If they forget to close a session, the file accumulates stale state forever. The implicit "session ends when budget exhausts" is a natural cycle.
+
+**Four new MCP tools:** `explore.start_session`, `explore.save_finding`, `explore.budget_status`, `explore.submit_findings`. See `docs/architecture.md` for full signatures and the local file shape.
+
+**What this costs us:**
+- Token-based budgets (e.g., "explore for $5 of model spend") aren't supported in v0. Wall-clock is a proxy, not a perfect substitute. Reserved for later.
+- Local state needs a versioned schema for the session file in case we evolve the shape. Schema_version field is included; migrations are deferred until we change it.
+
+---
+
+## Why Railway for the backend
+
+**Considered:** Cloudflare Workers + D1, Cloudflare Workers + Neon Postgres, Vercel Edge + Supabase, self-hosted on Fly.io or Render.
+
+**Originally chose Cloudflare Workers** for v0 (per architecture.md before the 2026-05-02 amendment). Reasoning: edge runtime, free tier, single-region simplicity, matched the static-only ethos of GitHub Pages.
+
+**Amended to Railway because:**
+- West already has a Railway subscription. Cost objection vanishes.
+- The Claw_Street_Bets project established a Fastify + Prisma + Postgres + Railway pattern that this project can reuse without learning new deployment mechanics.
+- Cloudflare Workers don't hold persistent TCP connections to Postgres. Connecting them to a real DB requires either Hyperdrive in front, a connection pooler sidecar, or an HTTP-only Postgres driver. Each adds a moving part. Railway-hosted Node.js services connect to Railway-hosted Postgres natively.
+- The latency cost of single-region (vs edge) hosting is irrelevant for this workload. A `registry.lookup` happens once per agent task, not in a hot loop. Adding 50ms is invisible.
+
+**What this costs us:**
+- A monthly bill (already paid). Not a v0 concern.
+- Single-region. If the registry ever needs global low-latency reads, put the lookup endpoint behind a CDN with cache invalidation on PR merge. Reserved for later.
+- Cold starts on free Railway plans can be slow. Mitigated by always-on dyno or by a tiny pinger if needed.
 
 ---
 
@@ -119,15 +236,26 @@ The middle ground that doesn't yet exist: a shared, semantic representation of h
 
 ---
 
-## Why GitHub OAuth required, no anonymous contributions
+## Why GitHub OAuth is required for submission, but not for use
 
-**Considered:** Anonymous web upload form. Lower friction.
+**Considered (originally):** Require GitHub OAuth for both contributors AND every user of the registry, on the theory that identity-bound usage data is more useful than anonymous data.
 
-**Chose GitHub OAuth for both contributors and explorer-skill users because:**
-- Reputation is a load-bearing concept once the registry has scale. Anonymous contributions undermine reputation tracking.
+**Considered (also):** Anonymous everywhere. Lower friction across the board.
+
+**Decision (refined 2026-05-02):** Asymmetric auth.
+- **Submission requires GitHub OAuth.** Every shortcut has a `contributor_id` (GitHub username). No anonymous submissions.
+- **Use does not require auth.** The use seed skill works the moment the MCP is installed. Execution telemetry is reported anonymously, tagged with the MCP's locally-minted `install_id` for sybil resistance only.
+
+**Why submission needs identity:**
+- Reputation is load-bearing once the registry has scale. Anonymous contributions undermine it.
+- Identity gives us a future hook for the payment economy (`contributor_id` and `payment_destination` are in the schema from day one).
+- Identity makes spam and bad-skill remediation easier — a contributor whose shortcuts repeatedly fail at runtime can be soft-banned without affecting the rest of the registry.
 - GitHub identity is essentially free for any developer audience.
-- Identity gives us a future hook for the payment economy (`contributor_id` is in the schema from day one).
-- Identity makes spam and bad-skill remediation easier.
+
+**Why use does NOT need identity:**
+- The "install and go" funnel is the product's biggest growth lever. Adding OAuth at the use step would gate the most common path on a multi-step browser dance.
+- The rating signal we care about is the verification result, which is the same regardless of who ran it. We don't need a user identity to interpret the data point.
+- Sybil resistance comes from per-`install_id` rate limits, not from auth. See "Why ratings are verification results, not user votes."
 
 **What this costs us:** Friction at the contribution step. Acceptable because contributors are a small subset of users, and the explorer use case (where most contributions originate) requires the user to be deliberate about contributing anyway.
 
