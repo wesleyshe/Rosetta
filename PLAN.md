@@ -51,11 +51,11 @@ Status markers: `[ ]` not started, `[~]` in progress, `[x]` done, `[!]` blocked.
 
 **Goal:** Public-facing site lists apps, shows two seed skills, lets users browse the registry. Site is hosted by the Railway backend (NOT GitHub Pages); this phase produces the static source files only.
 
-- [ ] `site/index.html` — landing page with brief Rosetta introduction + install instructions + two prominent copy-to-clipboard boxes for the seed skills (use + explore)
-- [ ] `site/app.html` — per-app page with two tabs (human-readable view of the spec, raw JSON view)
-- [ ] `site/seed-skills/use.md` and `site/seed-skills/explore.md` — the canonical seed-skill text files (served at fixed URLs by the backend)
-- [ ] Minimal CSS (no framework needed)
-- [ ] Verify the page templates can fetch `registry/index.json` and `apps/{app_id}/...` from same-origin URLs (they will be served by the Railway backend in Phase 6a, which exposes both `site/` and `registry/` as static assets)
+- [x] `site/index.html` — landing page with brief Rosetta introduction + install instructions + two prominent copy-to-clipboard boxes for the seed skills (use + explore)
+- [x] `site/app.html` — per-app page with two tabs (human-readable view of the spec, raw JSON view)
+- [x] `site/seed-skills/use.md` and `site/seed-skills/explore.md` — the canonical seed-skill text files (served at fixed URLs by the backend)
+- [x] Minimal CSS (no framework needed)
+- [x] Verify the page templates can fetch `registry/index.json` and `apps/{app_id}/...` from same-origin URLs (they will be served by the Railway backend in Phase 6a, which exposes both `site/` and `registry/` as static assets)
 
 **Note:** GitHub Pages is NOT used. Deployment is folded into Phase 6a (the Railway backend reads `site/` and `registry/` off disk).
 

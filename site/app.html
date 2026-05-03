@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>App &mdash; Rosetta</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header>
+    <p class="back"><a href="/">&larr; Back to Rosetta</a></p>
+    <h1 id="app-display-name">Loading&hellip;</h1>
+    <p id="app-meta-line" class="note"></p>
+  </header>
+
+  <main>
+    <nav class="tabs">
+      <button class="tab-btn active" data-tab="human" type="button">Human view</button>
+      <button class="tab-btn" data-tab="raw" type="button">Raw JSON</button>
+    </nav>
+
+    <section id="tab-human" class="tab-panel active">
+      <h2>Agent primer</h2>
+      <div id="agent-primer"></div>
+      <h2>Workflow</h2>
+      <div id="workflow"></div>
+      <h2>Shortcuts</h2>
+      <ul id="shortcuts"></ul>
+    </section>
+
+    <section id="tab-raw" class="tab-panel">
+      <h2>meta.json</h2>
+      <pre><code id="raw-meta"></code></pre>
+      <h2>workflow.json</h2>
+      <pre><code id="raw-workflow"></code></pre>
+      <h2>shortcuts.json</h2>
+      <pre><code id="raw-shortcuts"></code></pre>
+    </section>
+  </main>
+
+  <footer>
+    <p>Source: <a href="https://github.com/wesleyshe/Rosetta">github.com/wesleyshe/Rosetta</a> &middot; MIT</p>
+  </footer>
+
+  <script>
+    const params = new URLSearchParams(location.search);
+    const appId = params.get("app");
+
+    if (!appId) {
+      document.getElementById("app-display-name").textContent = "No app specified";
+      const meta = document.getElementById("app-meta-line");
+      meta.innerHTML = 'Append <code>?app={app_id}</code> to the URL.';
+    } else {
+      loadApp(appId);
+    }
+
+    async function loadApp(id) {
+      const base = "/registry/apps/" + encodeURIComponent(id);
+      let meta, workflow, shortcuts;
+      try {
+        [meta, workflow, shortcuts] = await Promise.all([
+          fetchJson(base + "/meta.json"),
+          fetchJson(base + "/workflow.json"),
+          fetchJson(base + "/shortcuts.json")
+        ]);
+      } catch (e) {
+        document.getElementById("app-display-name").textContent = "App not found";
+        document.getElementById("app-meta-line").textContent =
+          'Could not load app "' + id + '": ' + e.message;
+        return;
+      }
+      renderApp(meta, workflow, shortcuts);
+    }
+
+    async function fetchJson(url) {
+      const r = await fetch(url);
+      if (!r.ok) throw new Error("HTTP " + r.status + " for " + url);
+      return r.json();
+    }
+
+    function renderApp(meta, workflow, shortcuts) {
+      document.getElementById("app-display-name").textContent = meta.display_name;
+      const metaParts = [
+        meta.id,
+        "platforms: " + meta.platforms.join(", ")
+      ];
+      if (meta.category) metaParts.push(meta.category);
+      if (meta.search_first_supported) metaParts.push("search-first ✓");
+      document.getElementById("app-meta-line").textContent = metaParts.join(" · ");
+
+      document.getElementById("agent-primer").innerHTML =
+        renderSimpleMarkdown(meta.agent_primer || "");
+
+      const wf = document.getElementById("workflow");
+      wf.innerHTML = "";
+      wf.appendChild(kv("Default dispatch strategy", workflow.default_dispatch_strategy.join(" → ")));
+      wf.appendChild(kv("Default verification", workflow.verification_default));
+      wf.appendChild(kv("Failure recovery", workflow.failure_recovery.join(" → ")));
+
+      const ul = document.getElementById("shortcuts");
+      ul.innerHTML = "";
+      for (const s of shortcuts.shortcuts || []) {
+        const li = document.createElement("li");
+        const idCode = document.createElement("code");
+        idCode.textContent = s.id;
+        li.appendChild(idCode);
+        li.appendChild(textNode(" · "));
+        li.appendChild(span("method", s.method));
+        li.appendChild(textNode(" · "));
+        li.appendChild(span("verify", s.verification.type));
+        li.appendChild(span("intent", s.intent));
+        const m = s.metadata;
+        const metaLine = "platforms: " + s.platforms.join(", ") +
+          " · ~" + m.token_cost_estimate + " tokens" +
+          " · ~" + m.speed_estimate_ms + "ms" +
+          " · contributed by " + m.contributor_id;
+        li.appendChild(span("shortcut-meta", metaLine));
+        ul.appendChild(li);
+      }
+
+      document.getElementById("raw-meta").textContent = JSON.stringify(meta, null, 2);
+      document.getElementById("raw-workflow").textContent = JSON.stringify(workflow, null, 2);
+      document.getElementById("raw-shortcuts").textContent = JSON.stringify(shortcuts, null, 2);
+    }
+
+    function kv(label, value) {
+      const p = document.createElement("p");
+      const strong = document.createElement("strong");
+      strong.textContent = label + ": ";
+      p.appendChild(strong);
+      p.appendChild(document.createTextNode(value));
+      return p;
+    }
+    function span(cls, text) {
+      const s = document.createElement("span");
+      s.className = cls;
+      s.textContent = text;
+      return s;
+    }
+    function textNode(t) { return document.createTextNode(t); }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      }[c]));
+    }
+    // Tiny markdown renderer for agent_primer. Handles paragraphs, ## / # headings,
+    // bullet lists (- ), inline **bold** and `code`. Anything fancier should feed
+    // through a real renderer in a later phase.
+    function renderSimpleMarkdown(md) {
+      const blocks = md.split(/\n\n+/);
+      return blocks.map(block => {
+        if (block.startsWith("## ")) return "<h3>" + inline(block.slice(3)) + "</h3>";
+        if (block.startsWith("# ")) return "<h2>" + inline(block.slice(2)) + "</h2>";
+        const lines = block.split("\n");
+        if (lines.every(l => l.trim().startsWith("- "))) {
+          return "<ul>" + lines.map(l =>
+            "<li>" + inline(l.replace(/^\s*-\s*/, "")) + "</li>"
+          ).join("") + "</ul>";
+        }
+        return "<p>" + inline(block.replace(/\n/g, "<br>")) + "</p>";
+      }).join("\n");
+    }
+    function inline(s) {
+      return escapeHtml(s)
+        .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+        .replace(/`([^`]+)`/g, "<code>$1</code>");
+    }
+
+    document.querySelectorAll(".tab-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+        document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+        btn.classList.add("active");
+        document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
+      });
+    });
+  </script>
+</body>
+</html>

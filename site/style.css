@@ -1,0 +1,138 @@
+/* Phase 2 minimal CSS. Functional, undesigned. Real design pass tracked in
+   docs/parking-lot.md item 11. */
+
+:root {
+  --fg: #1a1a1a;
+  --bg: #ffffff;
+  --muted: #666;
+  --border: #ddd;
+  --accent: #0066cc;
+  --code-bg: #f4f4f4;
+  --error: #c0392b;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--fg);
+  background: var(--bg);
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 2rem 1rem 4rem;
+}
+
+header {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 1rem;
+  margin-bottom: 2rem;
+}
+header h1 { margin: 0; font-size: 2rem; }
+.tagline { color: var(--muted); margin: 0.5rem 0 0; }
+
+.back { margin: 0 0 0.5rem; }
+.back a { color: var(--muted); text-decoration: none; }
+.back a:hover { color: var(--accent); }
+
+h2 {
+  margin-top: 2rem;
+  font-size: 1.25rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.25rem;
+}
+h3 { margin-top: 1.25rem; font-size: 1.05rem; }
+
+p { margin: 0.75rem 0; }
+a { color: var(--accent); }
+a:hover { text-decoration: underline; }
+
+code, pre {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9rem;
+}
+code {
+  background: var(--code-bg);
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+}
+pre {
+  background: var(--code-bg);
+  padding: 1rem;
+  border-radius: 4px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+pre code { background: none; padding: 0; }
+
+ul { padding-left: 1.5rem; }
+li { margin: 0.5rem 0; }
+
+.note { color: var(--muted); font-size: 0.9rem; }
+.error { color: var(--error); }
+
+.copy-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 0.4rem 0.8rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+.copy-btn:hover { background: #0052a3; }
+
+/* Tabs on app.html */
+.tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.tab-btn {
+  background: none;
+  border: 1px solid transparent;
+  border-bottom: none;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  font-size: 1rem;
+  color: var(--muted);
+}
+.tab-btn.active {
+  color: var(--fg);
+  border-color: var(--border);
+  background: var(--bg);
+  margin-bottom: -1px;
+  border-bottom: 1px solid var(--bg);
+}
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* Shortcut list pills (app.html) */
+.method,
+.verify {
+  display: inline-block;
+  padding: 0 0.4rem;
+  border-radius: 3px;
+  font-size: 0.85rem;
+}
+.method { background: #e6f0ff; color: var(--accent); }
+.verify { background: #f4f4f4; color: var(--muted); }
+.intent { display: block; margin-top: 0.25rem; }
+.shortcut-meta {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+footer {
+  margin-top: 4rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.9rem;
+}

@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Rosetta — community registry of AI agent skills</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header>
+    <h1>Rosetta</h1>
+    <p class="tagline">Community registry of "skills" that lets AI agents control desktop apps without per-app integration.</p>
+  </header>
+
+  <main>
+    <section id="intro">
+      <h2>What this is</h2>
+      <p>Two seed skills (text blobs you paste into your AI client) plus one MCP server (one-line install) plus this hosted JSON registry. The agent looks up how to do things in apps, executes them deterministically, and verifies the result. Discover once, replay deterministically, fall back to vision when needed.</p>
+      <p>Designed to work with: Claude Desktop, Claude Code, Cursor, ChatGPT Desktop, Gemini CLI &mdash; any client that supports MCP. Web chat clients (chatgpt.com, claude.ai, gemini.google.com) are out of scope for v0.</p>
+    </section>
+
+    <section id="install">
+      <h2>Install</h2>
+      <p>Run the MCP server locally:</p>
+      <pre><code>npx @rosetta-skills/mcp</code></pre>
+      <p class="note">npm name TBD. v0 not yet published &mdash; see <a href="https://github.com/wesleyshe/Rosetta">github.com/wesleyshe/Rosetta</a> for status.</p>
+      <p>Then paste one of the two seed skills below into your AI client's instructions / system prompt.</p>
+    </section>
+
+    <section id="use-skill">
+      <h2>Use skill <span class="note">(no auth required)</span></h2>
+      <p>Paste this to give your agent the ability to use shortcuts from the registry.</p>
+      <button class="copy-btn" data-target="use-skill-text">Copy</button>
+      <pre><code id="use-skill-text">Loading&hellip;</code></pre>
+    </section>
+
+    <section id="explore-skill">
+      <h2>Explore skill <span class="note">(GitHub OAuth required)</span></h2>
+      <p>Paste this to give your agent the ability to map a new app and contribute shortcuts back to the registry.</p>
+      <button class="copy-btn" data-target="explore-skill-text">Copy</button>
+      <pre><code id="explore-skill-text">Loading&hellip;</code></pre>
+    </section>
+
+    <section id="apps">
+      <h2>Apps in the registry</h2>
+      <ul id="app-list"><li class="note">Loading&hellip;</li></ul>
+    </section>
+  </main>
+
+  <footer>
+    <p>Source: <a href="https://github.com/wesleyshe/Rosetta">github.com/wesleyshe/Rosetta</a> &middot; MIT</p>
+  </footer>
+
+  <script>
+    async function loadSeed(targetId, url) {
+      const el = document.getElementById(targetId);
+      try {
+        const text = await fetch(url).then(r => {
+          if (!r.ok) throw new Error("HTTP " + r.status);
+          return r.text();
+        });
+        el.textContent = text;
+      } catch (e) {
+        el.textContent = "Failed to load " + url + ": " + e.message;
+        el.classList.add("error");
+      }
+    }
+    loadSeed("use-skill-text", "/seed-skills/use.md");
+    loadSeed("explore-skill-text", "/seed-skills/explore.md");
+
+    document.querySelectorAll(".copy-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const target = document.getElementById(btn.dataset.target);
+        try {
+          await navigator.clipboard.writeText(target.textContent);
+          const original = btn.textContent;
+          btn.textContent = "Copied!";
+          setTimeout(() => { btn.textContent = original; }, 1500);
+        } catch (e) {
+          btn.textContent = "Copy failed";
+        }
+      });
+    });
+
+    async function loadApps() {
+      const list = document.getElementById("app-list");
+      try {
+        const data = await fetch("/registry/index.json").then(r => {
+          if (!r.ok) throw new Error("HTTP " + r.status);
+          return r.json();
+        });
+        list.innerHTML = "";
+        if (!data.apps || data.apps.length === 0) {
+          list.innerHTML = '<li class="note">No apps registered yet.</li>';
+          return;
+        }
+        for (const app of data.apps) {
+          const li = document.createElement("li");
+          const a = document.createElement("a");
+          a.href = "/app.html?app=" + encodeURIComponent(app.id);
+          a.textContent = app.display_name;
+          li.appendChild(a);
+          const meta = document.createElement("span");
+          meta.className = "note";
+          const skillSuffix = app.skill_count === 1 ? "" : "s";
+          meta.textContent = " · " + app.skill_count + " shortcut" + skillSuffix +
+            " · " + app.platforms.join(", ");
+          li.appendChild(meta);
+          list.appendChild(li);
+        }
+      } catch (e) {
+        list.innerHTML = '<li class="error">Failed to load /registry/index.json: ' + e.message + "</li>";
+      }
+    }
+    loadApps();
+  </script>
+</body>
+</html>
