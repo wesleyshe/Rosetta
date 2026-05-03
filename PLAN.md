@@ -67,12 +67,12 @@ Status markers: `[ ]` not started, `[~]` in progress, `[x]` done, `[!]` blocked.
 
 **Goal:** MCP server installs cleanly, connects to Claude Desktop, exposes registry lookup tools.
 
-- [ ] `mcp/` TypeScript project setup with `@modelcontextprotocol/sdk`
-- [ ] Generate and persist `install_id` (UUID) on first launch, stored in MCP config. Used in all telemetry calls.
-- [ ] Implement `registry.lookup(app, intent, platform?, version?)` — calls the Railway backend's `GET /lookup`, which merges spec JSON (read from the deploy's disk) with live `ShortcutStats` (from Postgres) and returns ranked matches
-- [ ] Implement `registry.list_apps()` — calls backend `GET /apps`
-- [ ] Implement `os.app_info(name)` — detects installed app version and platform
-- [ ] Smoke test: install in Claude Desktop, verify tools appear, verify lookup returns VS Code shortcuts with stats fields populated (or `cold_start: true` when not enough data)
+- [x] `mcp/` TypeScript project setup with `@modelcontextprotocol/sdk`
+- [x] Generate and persist `install_id` (UUID) on first launch, stored in MCP config. Used in all telemetry calls.
+- [x] Implement `registry.lookup(app, intent, platform?, version?)` — calls the Railway backend's `GET /lookup`, which merges spec JSON (read from the deploy's disk) with live `ShortcutStats` (from Postgres) and returns ranked matches
+- [x] Implement `registry.list_apps()` — calls backend `GET /apps`
+- [x] Implement `os.app_info(name)` — detects installed app version and platform
+- [x] Smoke test: install in Claude Desktop, verify tools appear, verify lookup returns VS Code shortcuts with stats fields populated (or `cold_start: true` when not enough data)
 - [ ] Publish initial version to npm under a placeholder name
 
 **Estimate:** 4-6 hours. Note: Phase 3 depends on Phase 6 being far enough along that the backend's `/lookup` endpoint exists. If they're built in parallel, mock the backend response for Phase 3 smoke tests, then swap to real once Phase 6 ships.

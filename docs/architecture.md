@@ -41,7 +41,7 @@ Three components on the hosted side, one on the desktop side:
 1. **Git repo** (single source of truth): JSON spec files (`registry/apps/{app_id}/meta.json` + `workflow.json` + `shortcuts.json`), the static site source, the backend code, and the MCP code. Version history is the audit trail. Submissions land as auto-merged PRs.
 2. **Railway service** (Fastify + Prisma, deployed from the repo): serves the static website, the raw spec JSON, the per-app generated `skill.md` agent-context endpoints, and the API endpoints (`/lookup`, `/submit`, `/report-execution`, OAuth callback). On every auto-merged submission, Railway redeploys via its GitHub integration and the new spec goes live in about a minute.
 3. **Postgres on Railway**: holds `Execution` events, aggregated `ShortcutStats`, `Contributor` records, and `Submission` audit rows. Specs are NOT in Postgres; the database only holds runtime data.
-4. **MCP server** (local on user's desktop): bundled daemon exposing registry-lookup, computer-control, verification, submission, execution-reporting, and explore-session tools. Maintains a local explore-session state file (`~/.config/rosetta-mcp/sessions/{app_id}.json`) for budget tracking and resume.
+4. **MCP server** (local on user's desktop): bundled daemon exposing registry-lookup, computer-control, verification, submission, execution-reporting, and explore-session tools. Maintains a local explore-session state file at `<config_dir>/sessions/{app_id}.json`, where `<config_dir>` is the user's MCP config directory (resolved per-platform; see `mcp/src/config.ts`).
 
 User installs the MCP once, pastes one of the two seed skills into their AI chat client, and starts giving natural-language commands. The use seed skill requires no authentication. Only the explore seed skill (which submits new shortcuts) requires GitHub OAuth.
 
@@ -229,6 +229,8 @@ The shortcut JSON only stores **immutable, contributor-declared** fields. Runtim
 
 All tools live under one MCP server. TypeScript, packaged for `npx @rosetta-skills/mcp` install (final npm name TBD).
 
+**Tool naming convention.** Tool names on the MCP wire use snake_case (e.g. `registry_list_apps`, `os_app_info`). Documentation prose below uses the dotted form (`registry.list_apps`, `os.app_info`) for readability. The two map 1:1 via underscore ↔ dot. New tools follow this convention.
+
 ### Registry tools
 
 - `registry.list_apps()` → list of apps with metadata. Hits the backend (`GET /apps`) so the response includes per-app skill counts and aggregate health.
@@ -239,7 +241,7 @@ All tools live under one MCP server. TypeScript, packaged for `npx @rosetta-skil
 
 ### OS tools
 
-- `os.app_info(app_name)` → `{ installed: bool, version, platform, bundle_id?, pid? }`
+- `os.app_info(app_name)` → `{ installed: bool, version, platform, bundle_id?, pid?, error? }`. The `error` field is populated when the platform probe is stubbed (Windows / Linux in v0) or fails non-fatally (e.g., `mdfind` missing or returning nothing).
 - `os.screenshot(region?)` → returns image (base64 or file path)
 - `os.read_ax_tree(window?)` → returns accessibility tree as structured JSON
 - `os.action(spec)` — discriminated union:
@@ -266,7 +268,13 @@ All tools live under one MCP server. TypeScript, packaged for `npx @rosetta-skil
 
 ### Explore-session tools
 
-The explore seed skill is durable and resumable. The MCP maintains a local session state file per app at `~/.config/rosetta-mcp/sessions/{app_id}.json`. Sessions are wall-clock-budgeted; when the budget runs out the session auto-ends but state persists for resume.
+The explore seed skill is durable and resumable. The MCP maintains a local session state file per app at `<config_dir>/sessions/{app_id}.json`, where `<config_dir>` is the user's MCP config directory (resolved per-platform; see `mcp/src/config.ts`):
+
+- macOS:   `~/Library/Application Support/rosetta-mcp/sessions/{app_id}.json`
+- Windows: `%APPDATA%/rosetta-mcp/sessions/{app_id}.json`
+- Linux:   `$XDG_CONFIG_HOME/rosetta-mcp/sessions/{app_id}.json` (fall back to `~/.config/rosetta-mcp/sessions/{app_id}.json` if `XDG_CONFIG_HOME` is unset)
+
+Sessions are wall-clock-budgeted; when the budget runs out the session auto-ends but state persists for resume.
 
 - `explore.start_session({ app_id, budget_minutes, submission_reserve_minutes? })` — creates or resumes a session. If a session file already exists for this `app_id`, it loads prior state and returns `{ resumed: true, previously_completed_intents: [...], previously_abandoned_intents: [...], findings_count: N }`. If no prior file, it creates one and returns `{ resumed: false }`. `submission_reserve_minutes` defaults to 5.
 - `explore.save_finding({ shortcut_spec, status, verification_log? })` — appends a draft to the session's findings array. `status` is one of `drafted` (not yet tested), `verified` (tested, verification passed), or `rejected_by_self` (tested, abandoning). Re-saving with the same `shortcut_spec.id` updates in place.
