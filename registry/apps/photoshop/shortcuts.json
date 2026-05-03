@@ -1,0 +1,216 @@
+{
+  "schema_version": 1,
+  "app_id": "photoshop",
+  "shortcuts": [
+    {
+      "id": "open-file",
+      "intent": "Open an image file by absolute path as a new active document in Photoshop",
+      "parameters": [
+        { "name": "path", "type": "string", "required": true }
+      ],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "shortcut",
+      "actions": [
+        { "type": "key_combo", "keys": { "macos": "cmd+o" } },
+        { "type": "key_combo", "keys": { "macos": "cmd+shift+g" } },
+        { "type": "type_text", "text": "{path}" },
+        { "type": "key", "key": "enter" },
+        { "type": "key", "key": "enter" }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Looking at the screen, is the image file at {path} now open as the active document in Photoshop (visible in the canvas with its filename in the active document tab)?",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "seed",
+        "payment_destination": null,
+        "token_cost_estimate": 50,
+        "speed_estimate_ms": 1200,
+        "submitted_at": "2026-05-03"
+      }
+    },
+    {
+      "id": "save-as-jpg",
+      "intent": "Save a copy of the active document as a JPG file at the given absolute path",
+      "parameters": [
+        { "name": "path", "type": "string", "required": true },
+        {
+          "name": "quality",
+          "type": "number",
+          "required": false
+        }
+      ],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "menu",
+      "actions": [
+        { "type": "menu", "path": ["File", "Save a Copy..."] },
+        { "type": "key_combo", "keys": { "macos": "cmd+shift+g" } },
+        { "type": "type_text", "text": "{path}" },
+        { "type": "key", "key": "enter" },
+        { "type": "key", "key": "enter" },
+        { "type": "key_combo", "keys": { "macos": "cmd+a" } },
+        { "type": "type_text", "text": "{quality}" },
+        { "type": "key", "key": "enter" }
+      ],
+      "verification": {
+        "type": "file_check",
+        "path": "{path}",
+        "exists": true
+      },
+      "metadata": {
+        "contributor_id": "seed",
+        "payment_destination": null,
+        "token_cost_estimate": 80,
+        "speed_estimate_ms": 3000,
+        "submitted_at": "2026-05-03"
+      }
+    },
+    {
+      "id": "save-as-png",
+      "intent": "Save a copy of the active document as a PNG file at the given absolute path",
+      "parameters": [
+        { "name": "path", "type": "string", "required": true }
+      ],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "menu",
+      "actions": [
+        { "type": "menu", "path": ["File", "Save a Copy..."] },
+        { "type": "key_combo", "keys": { "macos": "cmd+shift+g" } },
+        { "type": "type_text", "text": "{path}" },
+        { "type": "key", "key": "enter" },
+        { "type": "key", "key": "enter" },
+        { "type": "key", "key": "enter" }
+      ],
+      "verification": {
+        "type": "file_check",
+        "path": "{path}",
+        "exists": true
+      },
+      "metadata": {
+        "contributor_id": "seed",
+        "payment_destination": null,
+        "token_cost_estimate": 70,
+        "speed_estimate_ms": 2500,
+        "submitted_at": "2026-05-03"
+      }
+    },
+    {
+      "id": "undo",
+      "intent": "Undo the most recent edit on the active document",
+      "parameters": [],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "shortcut",
+      "actions": [
+        { "type": "key_combo", "keys": { "macos": "cmd+z" } }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Looking at the screen, has the most recent edit on the active document been undone? The canvas should now reflect the state from before the previous action.",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "seed",
+        "payment_destination": null,
+        "token_cost_estimate": 5,
+        "speed_estimate_ms": 100,
+        "submitted_at": "2026-05-03"
+      }
+    },
+    {
+      "id": "adjust-brightness",
+      "intent": "Apply a brightness shift to the active layer (positive brightens, negative darkens)",
+      "parameters": [
+        {
+          "name": "delta",
+          "type": "number",
+          "required": true
+        }
+      ],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "menu",
+      "actions": [
+        { "type": "menu", "path": ["Image", "Adjustments", "Brightness/Contrast..."] },
+        { "type": "key_combo", "keys": { "macos": "cmd+a" } },
+        { "type": "type_text", "text": "{delta}" },
+        { "type": "key", "key": "enter" }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Has the active document become noticeably brighter (if delta > 0) or darker (if delta < 0) by approximately {delta} brightness units compared to its previous state?",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "seed",
+        "payment_destination": null,
+        "token_cost_estimate": 50,
+        "speed_estimate_ms": 1500,
+        "submitted_at": "2026-05-03"
+      }
+    },
+    {
+      "id": "crop-to-region",
+      "intent": "Resize the canvas to a target width x height in pixels, centered (v0 fallback uses Image > Canvas Size; x, y origin and rotation_degrees parameters are reserved for a more flexible crop path that lands in 7b+)",
+      "parameters": [
+        { "name": "x", "type": "number", "required": false },
+        { "name": "y", "type": "number", "required": false },
+        { "name": "width", "type": "number", "required": true },
+        { "name": "height", "type": "number", "required": true },
+        { "name": "rotation_degrees", "type": "number", "required": false }
+      ],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "menu",
+      "actions": [
+        { "type": "menu", "path": ["Image", "Canvas Size..."] },
+        { "type": "key_combo", "keys": { "macos": "cmd+a" } },
+        { "type": "type_text", "text": "{width}" },
+        { "type": "key", "key": "tab" },
+        { "type": "key_combo", "keys": { "macos": "cmd+a" } },
+        { "type": "type_text", "text": "{height}" },
+        { "type": "key", "key": "enter" }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Does the active document's canvas now appear to be approximately {width} x {height} pixels (centered crop or extension from the previous canvas)?",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "seed",
+        "payment_destination": null,
+        "token_cost_estimate": 40,
+        "speed_estimate_ms": 1500,
+        "submitted_at": "2026-05-03"
+      }
+    },
+    {
+      "id": "convert-to-grayscale",
+      "intent": "Convert the active document's color mode to Grayscale, discarding color information",
+      "parameters": [],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "menu",
+      "actions": [
+        { "type": "menu", "path": ["Image", "Mode", "Grayscale"] },
+        { "type": "key", "key": "enter" }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Does the active document now appear in grayscale (no color visible in the canvas, and the document title or layers panel reflecting the Gray color mode)?",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "seed",
+        "payment_destination": null,
+        "token_cost_estimate": 30,
+        "speed_estimate_ms": 800,
+        "submitted_at": "2026-05-03"
+      }
+    }
+  ]
+}

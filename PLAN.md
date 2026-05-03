@@ -178,37 +178,37 @@ Status markers: `[ ]` not started, `[~]` in progress, `[x]` done, `[!]` blocked.
 
 **Part 1 — schema extensions + verify handler (additive, no schema_version bump):**
 
-- [ ] `shortcut.schema.json`: extend the `verification` `oneOf` with a new `wait_for_idle` type. Shape: `{ type: "wait_for_idle", max_seconds: number, idle_seconds?: number }`. Default `idle_seconds = 1`.
-- [ ] `shortcut.schema.json`: optional `produces: { type: string, key: string }` on a shortcut entry. Optional `consumes: { from_id: string, key: string }` on a parameter entry. Both are minimal-lift composition contracts; the chat LLM is responsible for chaining (parking-lot 4 partial activation).
-- [ ] `workflow.schema.json`: optional `pre_step` array of `ActionSpec` items, executed before each shortcut's main `actions`. Used for known-modal dismissal (escape, then cancel-button fallback). Photoshop sets it; VS Code stays empty.
-- [ ] `mcp/src/verify.ts`: `wait_for_idle` handler. Polls `os.app_info` (or a lightweight responsiveness probe) every `idle_seconds` until the app responds normally; returns `passed: true` once steady, `passed: false` with `error_class: "wait_for_idle_timeout"` on `max_seconds` overrun.
-- [ ] `scripts/validate-registry.mjs`: confirm it tolerates the new optional fields. No `schema_version` bump (additive only). Existing VS Code seed validates unchanged.
-- [ ] `docs/architecture.md`: document the new `wait_for_idle` verification type, the optional `produces`/`consumes` fields, and the optional `workflow.pre_step` field. Frame as universal GUI-app-control infrastructure per the design-rationale addition.
+- [x] `shortcut.schema.json`: extend the `verification` `oneOf` with a new `wait_for_idle` type. Shape: `{ type: "wait_for_idle", max_seconds: number, idle_seconds?: number }`. Default `idle_seconds = 1`. (commit `bfc9b79`)
+- [x] `shortcut.schema.json`: optional `produces: { type: string, key: string }` on a shortcut entry. Optional `consumes: { from_id: string, key: string }` on a parameter entry. Both are minimal-lift composition contracts; the chat LLM is responsible for chaining (parking-lot 4 partial activation).
+- [x] `workflow.schema.json`: optional `pre_step` array of `ActionSpec` items, executed before each shortcut's main `actions`. Used for known-modal dismissal. `failure_recovery` enum also gains `wait_for_idle`.
+- [x] `mcp/src/verify.ts`: `wait_for_idle` handler. Polls a lightweight osascript probe ("name of front window of frontmost process") every `idle_seconds` with that interval as the per-probe timeout — System Events round-trips through the app's AX layer so a busy app blocks. Returns `passed: true` on the first responsive probe, `passed: false` with `error_class: "wait_for_idle_timeout"` on `max_seconds` overrun. macOS-only in v0; other platforms return `wait_for_idle_not_implemented`.
+- [x] `scripts/validate-registry.mjs`: confirmed tolerant of the new optional fields without modification. No `schema_version` bump. VS Code seed validates unchanged (`OK: validated 1 app(s).` pre-Part 2; `OK: validated 2 app(s).` post-Part 2).
+- [x] `docs/architecture.md`: documented `wait_for_idle`, `produces`/`consumes`, and `pre_step` with the universal-infrastructure framing.
 
-**Gate before Part 2:** schema diffs + `verify.ts` changes + `validate-registry` passing against the unchanged VS Code seed.
+**Gate before Part 2 — closed (signed off 2026-05-03).**
 
 **Part 2 — Photoshop seed (after gate sign-off):**
 
-- [ ] `registry/apps/photoshop/meta.json` with a rich `agent_primer` covering: canvas (center workspace where the image lives), layers panel (right side, layer stack with visibility/lock toggles), tools panel (left edge, vertical toolbar), top menu bar (File / Edit / Image / Layer / Select / Filter / View / Window / Help), options bar (top, contextual to the active tool), undo/redo behavior (`cmd+z` / `cmd+shift+z` on macOS, History panel for granular state), common modal flows (unsaved-changes prompt, format-warning dialogs, "would you like to update" registration popups). `search_first_supported: false` (Photoshop has no command palette equivalent in the v0 target version).
-- [ ] `registry/apps/photoshop/workflow.json` per kickoff decision E:
-   - `search_first_supported: false`
+- [x] `registry/apps/photoshop/meta.json` with a rich `agent_primer` covering canvas, layers panel, tools panel, top menu bar, options bar, document tabs, undo/redo behavior, save behavior (Save / Save As / Save a Copy / Export As distinctions), common modal flows (license / update / color-profile / "Discard color information"), and AX-tree caveats (canvas is opaque — default to interpret_check). `search_first_supported: false` (no command palette in v0 Photoshop). v0 platforms list is `["macos"]` only — Windows/Linux land with the cross-platform polish in 7b+.
+- [x] `registry/apps/photoshop/workflow.json` per kickoff decision E:
+   - `search_first_supported: false` (declared on meta.json, not workflow)
    - `default_dispatch_strategy: ["shortcut_lookup", "menu_navigation", "vision_fallback"]` (no `search_first_if_supported`)
-   - `verification_default: "interpret_check"` (canvas state is largely opaque to AX; vision is the right default verification family)
+   - `verification_default: "interpret_check"` (canvas state opaque to AX; vision is the right default)
    - `failure_recovery: ["retry_same_shortcut_once", "wait_for_idle", "fallback_to_alternative_method", "escalate_to_explorer", "surface_to_user"]`
-   - `pre_step`: vision-based modal-detection that dismisses common Photoshop dialogs (escape first, then a cancel-button click fallback if a modal is still visible)
-- [ ] `registry/apps/photoshop/shortcuts.json`: 5–7 hand-curated entries per kickoff decision F:
-   1. `open-file` (parameter: `path`)
-   2. `save-as-jpg` (parameters: `path`, `quality` 0–100)
-   3. `save-as-png` (parameter: `path`)
-   4. `undo` (no parameters)
-   5. `adjust-brightness` (parameter: `delta` -100..+100)
-   6. `crop-to-region` (parameters: `x`, `y`, `width`, `height`, optional `rotation_degrees`)
-   7. `convert-to-grayscale` (no parameters)
-   Don't author harder ones (hue-shift on selection, select-subject, "make it visually pleasant") in this batch. Those come later or via the explorer skill in 7b+.
-- [ ] `registry/index.json`: add the `photoshop` entry.
-- [ ] `npm run validate-registry` passes against the new seed.
+   - `pre_step: [{ type: "key", key: "escape" }]` — single escape press to dismiss transient overlays (license reminder, update notice, welcome screen). Vision-based modal detection layers in later via the chat LLM, not the harness.
+- [x] `registry/apps/photoshop/shortcuts.json`: 7 hand-curated entries per kickoff decision F:
+   1. `open-file` (parameter: `path`) — `cmd+o` → `cmd+shift+g` path field → type path → enter → enter
+   2. `save-as-jpg` (parameters: `path`, `quality`) — menu File → Save a Copy → cmd+shift+g → type path → enter → enter → cmd+a + type quality + enter (JPG Options)
+   3. `save-as-png` (parameter: `path`) — same backbone, no quality dialog
+   4. `undo` — `cmd+z`
+   5. `adjust-brightness` (parameter: `delta`) — menu Image → Adjustments → Brightness/Contrast → cmd+a + type delta + enter
+   6. `crop-to-region` (parameters: `x`, `y`, `width`, `height`, `rotation_degrees`) — **v0 fallback uses Image → Canvas Size with centered anchor**; only `width` and `height` are honored; `x`, `y`, `rotation_degrees` are reserved (intent string says so). Flagged as the speculative one for Part 3 verification.
+   7. `convert-to-grayscale` — menu Image → Mode → Grayscale → enter (Discard color)
+   No `produces`/`consumes` threaded through these — the starter shortcuts are standalone and the composition demos are 7b+ territory (per Part 1 sign-off refinement).
+- [x] `registry/index.json`: photoshop entry added (platforms `["macos"]`, tracked_versions `["25+"]`, skill_count 7).
+- [x] `npm run validate-registry`: `OK: validated 2 app(s).` against vscode + photoshop.
 
-**Gate before Part 3:** show the user `meta.json` (full `agent_primer`), `workflow.json`, and the 5–7 `shortcuts.json` entries.
+**Gate before Part 3 — pending sign-off.**
 
 **Part 3 — use-skill smoke (after gate sign-off; requires user MCP install):**
 

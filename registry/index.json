@@ -8,6 +8,14 @@
       "tracked_versions": ["1.85+"],
       "skill_count": 8,
       "last_updated": "2026-05-03"
+    },
+    {
+      "id": "photoshop",
+      "display_name": "Adobe Photoshop",
+      "platforms": ["macos"],
+      "tracked_versions": ["25+"],
+      "skill_count": 7,
+      "last_updated": "2026-05-03"
     }
   ]
 }
