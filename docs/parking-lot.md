@@ -160,3 +160,5 @@ Deferred items. Each entry: what it is, why it's deferred, what would trigger us
 - Add a `direction` enum: `"no_change" | "any_change" | "exact_match"` against a reference image hash.
 - Add region-aware assertions: a `regions: [...]` array where each region has its own expected change behavior.
 - Drop `screenshot_diff` entirely if `interpret_check` turns out to cover the same use cases more reliably in practice.
+
+**v0 implementation note (added 2026-05-03):** The Phase 4 implementation uses a byte-level approximation in `mcp/src/verify.ts` (`verifyScreenshotDiff` / `approximateDiffRatio`), NOT a true PNG-decoded pixel diff. PNGs of different byte length are reported as 100% different; otherwise the ratio is the fraction of bytes that differ at corresponding offsets. Acceptable in v0 because no seed shortcut uses `screenshot_diff`. Proper pixel-decoded comparison is part of this item's scope when picked up in Phase 7 or later.
