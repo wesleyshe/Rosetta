@@ -1,13 +1,22 @@
-# worker/ (renaming to backend/ in Phase 6a)
+# backend/
 
-This folder will be renamed `backend/` per the 2026-05-02 backend pivot. It will hold the Railway-hosted Fastify + Prisma + Postgres service.
+Railway-hosted Fastify + Prisma + Postgres service. Single host for both the static website and the API.
 
-Responsibilities:
-- `POST /submit` — runs the LLM-based prompt-injection reviewer on a submitted spec, then opens a GitHub PR via the contributor's OAuth token and auto-merges it.
-- `POST /report-execution` — receives verification-result events from the MCP and updates `ShortcutStats` aggregates in Postgres.
-- `GET /lookup` — joins spec JSON (read from the deploy's disk) with live Postgres stats and returns ranked matches.
-- GitHub OAuth callback for explore-skill users.
+Routes:
+- `GET /` and assets — serves `site/` and `registry/` as static files.
+- `GET /apps/{app_id}/skill.md` — generated agent-context markdown (combines `meta.json` + `workflow.json` + a summary of `shortcuts.json`).
+- `POST /submit` (Phase 6a) — runs the LLM-based prompt-injection reviewer, then opens + auto-merges a GitHub PR via the contributor's OAuth token.
+- `POST /report-execution` (Phase 6b) — receives verification-result events from the MCP, writes an `Execution` row, re-aggregates `ShortcutStats`.
+- `GET /lookup` (Phase 6b) — joins specs on disk with live stats; returns ranked matches with `cold_start` flag.
+- GitHub OAuth login + callback for the explore-skill flow.
 
-See `docs/architecture.md` (System overview, Stats DB) and `PLAN.md` (Phase 6a, Phase 6b) for the full design.
+Run locally:
+```
+npm install
+npm run prisma:generate
+npm run dev
+```
 
-Lands in Phase 6a / 6b.
+Provisioning the live service is documented in `RAILWAY_SETUP.md`.
+
+See `docs/architecture.md` (System overview, Hosting and contribution flow, Stats DB, skill.md endpoint) and `PLAN.md` (Phase 6a, Phase 6b) for the full design.

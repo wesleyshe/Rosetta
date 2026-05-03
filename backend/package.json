@@ -1,0 +1,35 @@
+{
+  "name": "@rosetta-skills/backend",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Railway-hosted Fastify + Prisma + Postgres backend for the Rosetta skill registry. Serves the static site, generates skill.md, and exposes /submit (Phase 6a) plus /lookup and /report-execution (Phase 6b).",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "prisma generate && tsc",
+    "typecheck": "tsc --noEmit",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "postinstall": "prisma generate"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.30.0",
+    "@fastify/static": "^8.0.0",
+    "@octokit/rest": "^21.0.2",
+    "@prisma/client": "^6.0.0",
+    "ajv": "^8.17.0",
+    "ajv-formats": "^3.0.0",
+    "fastify": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "prisma": "^6.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}

@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+.env.local
+*.log
+
+# Prisma generated client lives inside node_modules/@prisma/client by default,
+# so node_modules/ above already covers it. Migrations are checked in.

@@ -1,0 +1,76 @@
+// Rosetta backend Postgres schema. Source of truth: docs/architecture.md
+// § "Stats DB (Postgres, on Railway)". Specs are NOT in Postgres — they
+// live in registry/apps/{app_id}/*.json on the deploy's disk.
+//
+// Models in this file:
+//   Execution    — one row per shortcut run; written by /report-execution
+//                  (Phase 6b). Used to compute ShortcutStats and to rate-limit
+//                  by (install_id, shortcut_id, day).
+//   ShortcutStats — aggregated per (shortcut_id, app_version, platform).
+//                  Re-computed inline on every Execution insert (v0 scale).
+//   Contributor  — one row per GitHub user who has submitted via OAuth.
+//                  Hashed token only; raw token is never stored.
+//   Submission   — audit row per /submit call. Written before PR creation;
+//                  status moves to "merged" or "rejected" as the flow
+//                  resolves.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Execution {
+  id            String   @id @default(cuid())
+  shortcut_id   String
+  app_id        String
+  install_id    String
+  success       Boolean
+  error_class   String?
+  app_version   String
+  platform      String
+  created_at    DateTime @default(now())
+
+  @@index([shortcut_id, app_version, platform])
+  @@index([install_id, shortcut_id, created_at])
+}
+
+model ShortcutStats {
+  shortcut_id       String
+  app_id            String
+  app_version       String
+  platform          String
+  use_count         Int       @default(0)
+  success_count     Int       @default(0)
+  success_rate      Float?
+  reliability_score Float?
+  last_validated    DateTime?
+  updated_at        DateTime  @updatedAt
+
+  @@id([shortcut_id, app_version, platform])
+}
+
+model Contributor {
+  github_username   String   @id
+  oauth_token_hash  String?
+  submission_count  Int      @default(0)
+  last_active_at    DateTime @updatedAt
+}
+
+model Submission {
+  id                String   @id @default(cuid())
+  contributor_id    String
+  app_id            String
+  shortcut_id       String
+  pr_url            String
+  pr_commit_sha     String?
+  reviewer_verdict  String
+  reviewer_reason   String?
+  status            String
+  created_at        DateTime @default(now())
+
+  @@index([contributor_id, created_at])
+}

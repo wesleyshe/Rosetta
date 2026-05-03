@@ -127,21 +127,28 @@ Status markers: `[ ]` not started, `[~]` in progress, `[x]` done, `[!]` blocked.
 
 **Goal:** Railway backend up and running. Serves the static website AND the API. Explorer agent can submit a skill that auto-merges to the spec store after passing an LLM-based prompt-injection review.
 
-- [ ] Rename `worker/` folder to `backend/` (`git mv worker backend` and update READMEs)
-- [ ] `backend/` TypeScript project with Fastify + Prisma + Postgres. Mirror the Claw_Street_Bets structure where it makes sense.
-- [ ] Provision Railway: Node.js service + Postgres add-on. Wire `DATABASE_URL` via Railway env.
-- [ ] Configure Railway's GitHub integration to redeploy automatically on push to `main`.
-- [ ] **Static-file serving** (`backend/src/static.ts`): serve `site/` (HTML, CSS, JS) and `registry/` (JSON specs) from the deploy's disk via `@fastify/static`. Confirm the website loads end-to-end at the Railway-assigned URL.
-- [ ] **`skill.md` generator** (`backend/src/routes/skill_md.ts`): `GET /apps/{app_id}/skill.md` reads `meta.json` + `workflow.json` + `shortcuts.json` from disk and renders the agent-context markdown template (see `docs/architecture.md` § "The skill.md endpoint").
-- [ ] `prisma/schema.prisma`: define `Execution`, `ShortcutStats`, `Contributor`, `Submission` models per `docs/architecture.md`
-- [ ] `prisma migrate dev` for the initial migration
-- [ ] GitHub OAuth flow on the static site, OAuth callback handled by `backend/src/routes/oauth.ts`. Hashed token stored in `Contributor.oauth_token_hash`.
-- [ ] `backend/src/routes/submit.ts`: validates the spec against `shortcut.schema.json`, runs `reviewer.ts` (LLM prompt-injection check), creates a branch + commit + PR + auto-merge via the GitHub REST API using the contributor's token, writes a `Submission` row.
-- [ ] `backend/src/reviewer.ts`: simple LLM call (Anthropic API) that returns `{ verdict: "passed" | "rejected" | "needs_human", reason: string }` for a given spec. Acknowledged shallow; sufficient for v0 per parking-lot item 1.
-- [ ] `backend/src/github.ts`: thin wrapper over Octokit for branch / commit / PR / merge operations.
-- [ ] `registry.submit(skill_spec)` MCP tool that calls `POST /submit`
-- [ ] PR template auto-populated with the spec diff, reviewer verdict, and contributor handle
-- [ ] Smoke test: explorer agent submits a real skill, backend reviewer passes it, PR opens and auto-merges, Railway redeploys, the website at `apps/{app_id}` shows the new shortcut, `lookup` returns it on next call.
+**Part A — foundational scaffolding (no write-side):**
+
+- [x] Rename `worker/` folder to `backend/` (already landed in `d251a95`; Part A also fixed the stale READMEs in root and `backend/`).
+- [x] `backend/` TypeScript project with Fastify 5.x + Prisma 6.x + Postgres + `@fastify/static@^8` + octokit + ajv + `@anthropic-ai/sdk` (deps per kickoff decision B). `tsconfig.json` mirrors the MCP's strict / Node16 / ES2022 settings. `package.json` scripts: `build`, `typecheck`, `dev` (tsx-watch), `start`, `prisma:*`. `.env.example` documents every env var.
+- [x] **Static-file serving** (`backend/src/static.ts`): two `@fastify/static` registrations — `site/` at `/` and `registry/` at `/registry/`, mirroring `scripts/dev-server.mjs`. The second registration uses `decorateReply: false`. Local smoke confirmed: `/`, `/registry/index.json`, `/registry/apps/vscode/meta.json` all return 200 with correct content-types.
+- [x] **`skill.md` generator** (`backend/src/routes/skill_md.ts`): `GET /apps/:app_id/skill.md` reads `meta.json` + `workflow.json` + `shortcuts.json`, renders the markdown template per `docs/architecture.md` § "The skill.md endpoint". 400 on bad `app_id` regex; 404 when the folder is missing; 500 on JSON-parse errors. Reliability column reads `unrated` until Phase 6b joins `ShortcutStats`.
+- [x] `prisma/schema.prisma`: `Execution`, `ShortcutStats`, `Contributor`, `Submission` models verbatim from `docs/architecture.md` § Stats DB. Datasource is `postgresql` per kickoff decision D (Railway's connection string in dev too, no parity).
+- [x] `backend/RAILWAY_SETUP.md` + `backend/railway.json`: one-page user guide covering project creation, Postgres add-on, env-var list, auto-deploy on `main`, local-dev DATABASE_URL reuse.
+
+**Part A gate (this commit):** before Part B starts, the user reviews `backend/package.json`, `backend/prisma/schema.prisma`, `backend/src/index.ts`, `backend/src/routes/skill_md.ts`, `backend/RAILWAY_SETUP.md`. Provisioning waits for Part B.
+
+**Part B — write-side (OAuth + submit + reviewer + github + MCP wiring):**
+
+- [ ] `prisma migrate dev` for the initial migration (run by the user once Postgres is provisioned per RAILWAY_SETUP.md).
+- [ ] Provision Railway: Node.js service + Postgres add-on. Wire `DATABASE_URL` and the env vars in `RAILWAY_SETUP.md`. Enable auto-deploy on `main`.
+- [ ] GitHub OAuth flow on the static site; callback handled by `backend/src/routes/oauth.ts`. Classic OAuth App per kickoff decision E. Token sha256-hashed; raw token never stored. Upserts `Contributor` row.
+- [ ] `backend/src/reviewer.ts`: `claude-sonnet-4-6` call (decision G) returning `{ verdict, reason }`. Acknowledged shallow; sufficient for v0 per parking-lot 1.
+- [ ] `backend/src/github.ts`: octokit wrapper using the **Contents API** (decision K, no git clone) — read existing `shortcuts.json`, append the new entry, write back, open PR, **squash-merge** via explicit API call (decision F, not GitHub's auto-merge feature). Retry once on 409 stale-SHA.
+- [ ] `backend/src/routes/submit.ts`: ajv validation against `registry/schemas/shortcut.schema.json` BEFORE the reviewer (decision H, no schema duplication). New-app submissions return 400 (decision J — adding a new app needs manual setup). Reviewer verdict drives PR creation; on pass, write `Submission` row and return `{pr_url, commit_sha}`.
+- [ ] `mcp/src/registry.ts`: extract submit logic into a shared function and expose as a top-level `registry_submit` MCP tool (decision I, 14th tool). `explore.submit_findings` calls the same shared function so behavior is identical. Real `POST /submit` when `ROSETTA_BACKEND_URL` is set; existing dry-run when unset.
+- [ ] PR template per kickoff decision L: `[rosetta-mcp] {app_id} / {shortcut_id} from {contributor}` title; body has reviewer verdict block + spec diff + auto-merge note.
+- [ ] End-to-end smoke test: user provisions Railway and OAuth App, the smoke walk-through in RAILWAY_SETUP.md passes, then the explorer agent (or a curl test) submits a real shortcut → reviewer passes → PR opens + auto-merges → Railway redeploys → website at `/apps/{app_id}` shows the new shortcut → `registry/apps/vscode/shortcuts.json` on disk has the new entry.
 
 **Estimate:** 8-12 hours (added static serving and skill.md generation versus the prior estimate).
 
