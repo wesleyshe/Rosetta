@@ -1,22 +1,28 @@
 # mcp/
 
-TypeScript MCP server. Bundled: registry lookup + computer control + verification + submission, all in one install.
+TypeScript MCP server. Bundled: registry lookup, computer control, verification, submission, and explore-session tools — all in one install.
 
-Lands in Phase 3 (registry tools) and Phase 4 (OS / verify / interpret tools). Distribution: `npx @rosetta-skills/mcp` (final npm name TBD).
+Distributed from source in v0 (npm package planned post-launch). To install for use, follow [`docs/install.md`](../docs/install.md). Tool surface is documented in [`docs/architecture.md`](../docs/architecture.md) § "MCP server: tool surface".
 
-See `docs/architecture.md` § "MCP server: tool surface" for the tool list.
+## Local development
 
-## Submitting shortcuts (contributor setup)
-
-To submit shortcuts back to the registry via the explore skill, set these env vars in your MCP config (e.g. Claude Desktop's `claude_desktop_config.json`, under the `rosetta` entry's `"env"` block):
-
-```json
-"ROSETTA_BACKEND_URL": "https://<your-railway-domain>",
-"ROSETTA_GITHUB_TOKEN": "gho_..."
+```sh
+npm install
+npm run build      # compiles to dist/index.js
 ```
 
-Get the OAuth token by visiting `<ROSETTA_BACKEND_URL>/auth/github/login` in a browser, authorizing the Rosetta MCP OAuth App, and extracting the `rosetta_token` cookie via DevTools (F12 → Application → Cookies → click the Railway domain → copy the `rosetta_token` value, which starts with `gho_`).
+To test changes against your own MCP client, point its `args` entry at `mcp/dist/index.js` (per [`docs/install.md`](../docs/install.md)) and rebuild + restart the client after each edit. The MCP log on macOS lives at `~/Library/Logs/Claude/mcp-server-rosetta.log`.
 
-The cookie's `httpOnly` flag prevents JS from reading it; DevTools shows the value because that's a browser feature, not a JS feature. The token has `public_repo` scope and the cookie expires after 30 days unless re-authorized. Treat it like a password.
+## Environment variables
 
-When `ROSETTA_BACKEND_URL` is unset, the MCP runs in dryrun mode for `registry.submit` — submissions log to stderr instead of hitting the backend. Useful for offline testing or before the backend is provisioned.
+Set these in your MCP client's config under the `rosetta` entry's `"env"` block:
+
+- `ROSETTA_REGISTRY_PATH` — local fallback registry path. Used when the backend is unreachable.
+- `ROSETTA_BACKEND_URL` — live registry URL. Defaults to the production Railway deploy. Unset to force dry-run mode (submissions log to stderr instead of hitting the backend).
+- `ROSETTA_GITHUB_TOKEN` — required to submit shortcuts. Get it from `<ROSETTA_BACKEND_URL>/auth/github/token` after completing the OAuth flow at `/auth/github/login`. Treat like a password.
+
+## Conventions
+
+- macOS action dispatch routes through `osascript` / System Events. Don't reintroduce nut.js for macOS — see `docs/design-rationale.md` § "Why macOS action dispatch goes through AppleScript".
+- nut.js retained for Windows / Linux until the cross-platform polish substep replaces it.
+- Strict TypeScript with Node16 module resolution.
