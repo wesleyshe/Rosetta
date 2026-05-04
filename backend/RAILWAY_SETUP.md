@@ -64,7 +64,7 @@ Once the first successful deploy lands:
 - `https://<your-railway-domain>/registry/index.json` → the registry index served from `registry/`.
 - `https://<your-railway-domain>/apps/vscode/skill.md` → the generated VS Code skill.md (markdown content-type).
 
-After Phase 6a Part B lands the OAuth + `/submit` endpoints, the same domain handles GitHub login and shortcut submissions; no further Railway config needed.
+The same domain handles GitHub login and shortcut submissions; no further Railway config needed beyond steps 1-3 above.
 
 ## Constraints / caveats
 

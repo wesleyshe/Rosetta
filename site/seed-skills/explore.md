@@ -18,8 +18,9 @@ protocol:
    to learn what intent strings already exist for this app, and infer
    terminology from those strings plus your own knowledge of the app.
 5. Call `registry.lookup(app_id, "*")` to confirm what's already mapped in the
-   live registry. Don't re-submit existing shortcuts. In pre-backend mode this
-   doubles as your existing-capabilities orientation when step 4 degraded.
+   live registry. Don't re-submit existing shortcuts. If step 4 degraded
+   (skill.md fetch failed), this doubles as your existing-capabilities
+   orientation.
 6. Research the app freely within your remaining budget. Use any combination of:
    - Web search for official documentation, keyboard shortcut cheat sheets,
      forum threads, and changelogs.
