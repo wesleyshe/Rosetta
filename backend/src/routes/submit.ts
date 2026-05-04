@@ -94,18 +94,29 @@ export async function submitRoute(app: FastifyInstance): Promise<void> {
     }
 
     const token = parseBearer(req.headers.authorization);
-    if (!token) return reply.code(401).send({ error: "missing bearer token" });
+    if (!token) {
+      return reply.code(401).send({
+        error: "missing bearer token",
+        detail: "Set ROSETTA_GITHUB_TOKEN in your MCP config. Get the token by completing the OAuth flow at /auth/github/login and visiting /auth/github/token.",
+      });
+    }
 
     const tokenHash = hashToken(token);
     const prisma = getPrisma();
     const contributor = await prisma.contributor.findFirst({ where: { oauth_token_hash: tokenHash } });
-    if (!contributor) return reply.code(401).send({ error: "unknown bearer token" });
+    if (!contributor) {
+      return reply.code(401).send({
+        error: "unknown bearer token",
+        detail: "Token doesn't match any Contributor row. Either the OAuth login wasn't completed, or the token was rotated. Re-fetch from /auth/github/token.",
+      });
+    }
 
-    // Decision J: new apps not allowed via /submit.
+    // Decision J: new apps not allowed via /submit. Point contributors at the
+    // standard-PR path (CONTRIBUTING.md path C) instead of leaving them stuck.
     if (!existsSync(appDir(app_id))) {
       return reply.code(400).send({
         error: "unknown app_id",
-        detail: `registry/apps/${app_id}/ does not exist; new-app submissions are out of scope for v0 (manual setup required).`,
+        detail: `registry/apps/${app_id}/ does not exist. /submit only adds shortcuts to existing apps; to add a new app, open a PR with meta.json + workflow.json + shortcuts.json + an index.json entry. See CONTRIBUTING.md § "Adding a new app".`,
       });
     }
 
