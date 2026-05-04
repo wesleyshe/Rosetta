@@ -1,9 +1,7 @@
-// Registry tools: list_apps + lookup, dual-mode (hosted backend OR local
-// registry/ checkout) per Phase 3 decision B.
-//
-// Local mode returns cold_start: true on every shortcut and null stats —
-// there's no telemetry source available locally. Phase 6a / 6b populate
-// real stats via the Railway backend's /lookup endpoint.
+// Registry tools: list_apps + lookup, dual-mode (hosted backend or local
+// registry/ checkout). The hosted backend's /lookup endpoint joins specs
+// with live ShortcutStats; local mode returns cold_start: true on every
+// shortcut with null stats since there's no telemetry source on disk.
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -238,8 +236,6 @@ export interface ReportExecutionOutput {
   dry_run: boolean;
 }
 
-// TODO Phase 6b: replace dry-run with the backend's POST /report-execution,
-// which writes an `Execution` row and updates aggregated `ShortcutStats`.
 export async function reportExecution(
   input: ReportExecutionInput
 ): Promise<ReportExecutionOutput> {
@@ -312,11 +308,6 @@ export interface SubmitOutput {
   dry_run: boolean;
 }
 
-// TODO Phase 6a → 6b transition: when real submissions land, the explore
-// skill should pass the contributor_token explicitly (the explore skill
-// already requires GitHub auth, so the token is in-hand at that layer).
-// Until then, ROSETTA_GITHUB_TOKEN env is the simpler path for direct
-// MCP-tool invocations.
 export async function submitSpec(input: SubmitInput): Promise<SubmitOutput> {
   if (!input.app_id) throw new Error("registry.submit: app_id is required");
   if (!input.shortcut_spec || typeof input.shortcut_spec !== "object") {
