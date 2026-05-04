@@ -1,12 +1,17 @@
 // GET /lookup — agent-facing endpoint that joins specs (on disk) with
-// live ShortcutStats from Postgres. Phase 6b ranking per kickoff
-// decision E:
+// live ShortcutStats from Postgres. Ranking:
 //
-//   non-cold-start group: reliability_score desc, then token_cost_estimate
-//                          asc, then speed_estimate_ms asc
-//   cold-start group:     token_cost_estimate asc only (no stats to use)
+//   within each group, sort by intent-match score desc first, then:
+//     non-cold-start: reliability_score desc, token_cost_estimate asc,
+//                     speed_estimate_ms asc
+//     cold-start:     token_cost_estimate asc, speed_estimate_ms asc
 //   non-cold-start always sorts before cold-start
 //   if no non-cold-start matches, return cold-start group as the result
+//
+// Score-first ordering matches mcp/src/registry.ts (local fallback) and
+// fixes the case where a poor-fit warm shortcut would outrank a strong
+// intent match purely because the warm one had stats. Within each group,
+// the original tiebreakers (reliability, cost, speed) decide.
 //
 // Token-overlap matching mirrors mcp/src/registry.ts so local-mode and
 // hosted-mode behave the same. Wildcard "*" or empty intent → no
@@ -113,15 +118,14 @@ export async function lookupRoute(app: FastifyInstance): Promise<void> {
         }
         return { s, score };
       })
-      .filter(({ score }) => wildcard || score > 0)
-      .map(({ s }) => s);
+      .filter(({ score }) => wildcard || score > 0);
 
     // Attach stats. Cold-start when no row OR use_count < MIN_SAMPLES.
     const prisma = getPrisma();
     const minSamples = minSamplesForScore();
 
     const enriched = await Promise.all(
-      matched.map(async (s) => {
+      matched.map(async ({ s, score }) => {
         let stats = null as null | {
           use_count: number | null;
           success_rate: number | null;
@@ -151,6 +155,7 @@ export async function lookupRoute(app: FastifyInstance): Promise<void> {
         const cold_start = !stats || stats.use_count === null || stats.use_count < minSamples;
         return {
           ...s,
+          _score: score,
           stats: stats ?? {
             use_count: null,
             success_rate: null,
@@ -162,11 +167,11 @@ export async function lookupRoute(app: FastifyInstance): Promise<void> {
       })
     );
 
-    // Decision E ranking.
     const warm = enriched.filter((s) => !s.cold_start);
     const cold = enriched.filter((s) => s.cold_start);
 
     warm.sort((a, b) => {
+      if (b._score !== a._score) return b._score - a._score;
       const ra = a.stats.reliability_score ?? 0;
       const rb = b.stats.reliability_score ?? 0;
       if (rb !== ra) return rb - ra;
@@ -175,9 +180,15 @@ export async function lookupRoute(app: FastifyInstance): Promise<void> {
       if (ca !== cb) return ca - cb;
       return a.metadata.speed_estimate_ms - b.metadata.speed_estimate_ms;
     });
-    cold.sort((a, b) => a.metadata.token_cost_estimate - b.metadata.token_cost_estimate);
+    cold.sort((a, b) => {
+      if (b._score !== a._score) return b._score - a._score;
+      const ca = a.metadata.token_cost_estimate;
+      const cb = b.metadata.token_cost_estimate;
+      if (ca !== cb) return ca - cb;
+      return a.metadata.speed_estimate_ms - b.metadata.speed_estimate_ms;
+    });
 
-    const shortcuts = warm.length > 0 ? [...warm, ...cold] : cold;
+    const shortcuts = (warm.length > 0 ? [...warm, ...cold] : cold).map(({ _score, ...rest }) => rest);
 
     return reply.send({
       app_id,
