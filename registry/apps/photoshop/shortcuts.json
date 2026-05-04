@@ -908,6 +908,122 @@
         "speed_estimate_ms": 300,
         "submitted_at": "2026-05-04"
       }
+    },
+
+    {
+      "id": "open-levels",
+      "intent": "Open the Levels adjustment dialog for the active layer (Image > Adjustments > Levels)",
+      "parameters": [],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "shortcut",
+      "actions": [
+        { "type": "key_combo", "keys": { "macos": "cmd+l" } }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Is the Levels dialog now open in Photoshop, showing Input Levels histogram, channel selector, and output level sliders?",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "wesleyshe",
+        "payment_destination": null,
+        "token_cost_estimate": 5,
+        "speed_estimate_ms": 300,
+        "submitted_at": "2026-05-04"
+      }
+    },
+    {
+      "id": "open-curves",
+      "intent": "Open the Curves adjustment dialog for the active layer (Image > Adjustments > Curves)",
+      "parameters": [],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "shortcut",
+      "actions": [
+        { "type": "key_combo", "keys": { "macos": "cmd+m" } }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Is the Curves dialog now open in Photoshop, showing the curve graph with Input/Output axes, channel selector, and preset dropdown?",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "wesleyshe",
+        "payment_destination": null,
+        "token_cost_estimate": 5,
+        "speed_estimate_ms": 300,
+        "submitted_at": "2026-05-04"
+      }
+    },
+    {
+      "id": "open-hue-saturation",
+      "intent": "Open the Hue/Saturation adjustment dialog for the active layer (Image > Adjustments > Hue/Saturation)",
+      "parameters": [],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "shortcut",
+      "actions": [
+        { "type": "key_combo", "keys": { "macos": "cmd+u" } }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Is the Hue/Saturation dialog now open in Photoshop, showing Hue, Saturation, and Lightness sliders with a Preset dropdown?",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "wesleyshe",
+        "payment_destination": null,
+        "token_cost_estimate": 5,
+        "speed_estimate_ms": 300,
+        "submitted_at": "2026-05-04"
+      }
+    },
+    {
+      "id": "open-color-balance",
+      "intent": "Open the Color Balance adjustment dialog for the active layer (Image > Adjustments > Color Balance)",
+      "parameters": [],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "shortcut",
+      "actions": [
+        { "type": "key_combo", "keys": { "macos": "cmd+b" } }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Is the Color Balance dialog now open in Photoshop, showing Cyan-Red, Magenta-Green, Yellow-Blue sliders with Shadows/Midtones/Highlights tone selectors?",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "wesleyshe",
+        "payment_destination": null,
+        "token_cost_estimate": 5,
+        "speed_estimate_ms": 300,
+        "submitted_at": "2026-05-04"
+      }
+    },
+    {
+      "id": "toggle-rulers",
+      "intent": "Toggle the rulers on or off along the top and left edges of the document canvas (View > Rulers)",
+      "parameters": [],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "shortcut",
+      "actions": [
+        { "type": "key_combo", "keys": { "macos": "cmd+r" } }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Have the ruler bars along the top and left edges of the canvas changed state (appeared if they were hidden, disappeared if they were visible)?",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "wesleyshe",
+        "payment_destination": null,
+        "token_cost_estimate": 5,
+        "speed_estimate_ms": 100,
+        "submitted_at": "2026-05-04"
+      }
     }
   ]
 }
