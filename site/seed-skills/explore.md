@@ -31,8 +31,16 @@ protocol:
    - Manual menu walking to capture shortcuts shown next to menu items.
    - Official keyboard reference cards from the vendor's site.
 7. For each candidate capability, draft a shortcut spec following the schema in
-   this document. Required fields: id, intent, parameters, platforms,
-   app_versions, method, actions, verification, metadata.
+   this document. Required top-level fields: `id`, `intent`, `parameters`,
+   `platforms`, `app_versions`, `method`, `actions`, `verification`, `metadata`.
+   The `metadata` object MUST include all five required sub-fields: `contributor_id`
+   (the user's GitHub username from step 1), `payment_destination` (always `null`
+   in v0; the field is reserved for the future payment economy and must be
+   present), `token_cost_estimate` (integer, your best guess of input+output
+   tokens to run this shortcut), `speed_estimate_ms` (integer, wall-clock ms
+   from action start to verification pass), and `submitted_at` (today's date
+   in YYYY-MM-DD). Submissions that omit any of these fail ajv validation at
+   `/submit` time.
 8. Execute the draft shortcut once and run its verification. If `verify`
    returns `passed: null` with `error_class: "agent_must_judge"` (the
    interpret_check shape — see use-skill step 7b), the result carries an
