@@ -565,7 +565,19 @@ async function openAppMacos(
   if (!meta) {
     return { ok: false, error: `open_app: app "${spec.app_id}" not found in registry` };
   }
+  // Prefer bundle_id over display_name. LaunchServices does not fuzzy-match
+  // display names, so "Adobe Photoshop" misses an installed "Adobe Photoshop
+  // 2026". Bundle IDs are version-stable.
+  const bundleId = meta.detection.macos?.bundle_id;
   const display = meta.display_name;
+  if (bundleId) {
+    try {
+      await execFileAsync("open", ["-b", bundleId], { timeout: 8000 });
+      return { ok: true, details: { app: display, app_id: spec.app_id, bundle_id: bundleId } };
+    } catch (e) {
+      return { ok: false, error: `open -b "${bundleId}" failed: ${(e as Error).message}` };
+    }
+  }
   try {
     await execFileAsync("open", ["-a", display], { timeout: 8000 });
     return { ok: true, details: { app: display, app_id: spec.app_id } };
