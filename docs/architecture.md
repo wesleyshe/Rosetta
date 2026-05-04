@@ -581,10 +581,10 @@ Failure recovery (in order): {failure_recovery joined}
 
 ## Intents available
 
-- `{shortcut.id}` — {shortcut.intent} (reliability: {reliability_score or "unrated"})
+- `{shortcut.id}` — {shortcut.intent}
 - ...
 
-Call `registry.lookup({app_id}, intent)` for the full action spec on any intent.
+Call `registry.lookup({app_id}, intent, platform, app_version)` for the full action spec and live reliability score on any intent.
 ```
 
 ## Stats DB (Postgres, on Railway)

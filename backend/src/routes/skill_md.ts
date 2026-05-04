@@ -4,26 +4,10 @@
 // truth and skill.md is rendered server-side from meta.json + workflow.json
 // + a summary of shortcuts.json. Never authored directly.
 //
-// Template (mirrors the architecture.md sketch):
-//
-//   # {display_name} ({app_id})
-//
-//   {agent_primer}
-//
-//   ## Workflow
-//
-//   Default dispatch strategy: {default_dispatch_strategy joined}
-//   Default verification: {verification_default}
-//   Failure recovery (in order): {failure_recovery joined}
-//
-//   ## Intents available
-//
-//   - `{shortcut.id}` — {shortcut.intent} (reliability: {reliability_score or "unrated"})
-//   - ...
-//
-//   Call `registry.lookup({app_id}, intent)` for the full action spec on any intent.
-//
-// Reliability score is "unrated" in v0; Phase 6b joins ShortcutStats here.
+// The endpoint is app-scoped (no platform / app_version discriminator), so
+// it omits per-shortcut reliability — that data is keyed on (shortcut_id,
+// app_id, app_version, platform) and is reachable via /lookup, which the
+// agent calls in step 5 of the explore skill anyway.
 
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -101,7 +85,7 @@ export function renderSkillMd(
   const recovery = (workflow.failure_recovery ?? []).join(", ") || "—";
 
   const intentLines = shortcuts.shortcuts.map(
-    (s) => `- \`${s.id}\` — ${s.intent} (reliability: unrated)`
+    (s) => `- \`${s.id}\` — ${s.intent}`
   );
 
   return [
