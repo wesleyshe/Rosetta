@@ -1,0 +1,66 @@
+name: App request
+description: Request that an app be added to the registry, or volunteer to explore one yourself.
+title: "[app-request] <app name>"
+labels: ["app-request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        v0 is macOS-only. Coverage grows fastest when contributors run explore sessions against apps they use; if you'd be willing to do that, say so below — it short-circuits the queue.
+
+  - type: input
+    id: app_name
+    attributes:
+      label: App name
+      placeholder: "Figma Desktop"
+    validations:
+      required: true
+
+  - type: input
+    id: vendor
+    attributes:
+      label: Vendor / developer
+      placeholder: "Figma, Inc."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platforms
+    attributes:
+      label: Platforms you'd want covered
+      multiple: true
+      options:
+        - macOS
+        - Windows
+        - Linux
+    validations:
+      required: true
+
+  - type: textarea
+    id: top_intents
+    attributes:
+      label: Top 3-5 intents you'd want to drive
+      description: Specific, plain-language tasks an agent should be able to do. The more concrete the better.
+      placeholder: |
+        - Create a new frame at <size>
+        - Export the current selection as PNG to <path>
+        - Run the auto-layout command
+    validations:
+      required: true
+
+  - type: dropdown
+    id: contribute
+    attributes:
+      label: Would you run an explore session against this app?
+      options:
+        - "Yes — I have the app installed and could spend ~30 min"
+        - "Maybe, if no one else picks it up"
+        - "No, just requesting"
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: Known UI quirks, command palette / keyboard shortcut docs you've already found, version coverage you care about.

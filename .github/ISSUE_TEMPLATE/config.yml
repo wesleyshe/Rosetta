@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Authoring a shortcut
+    url: https://github.com/wesleyshe/Rosetta/blob/main/docs/skills.md
+    about: Want to contribute a shortcut? The authoring guide covers the schema, validation, and submission paths.
+  - name: Architecture and design rationale
+    url: https://github.com/wesleyshe/Rosetta/blob/main/docs/architecture.md
+    about: Read before proposing architectural changes. design-rationale.md records why each major decision was made.

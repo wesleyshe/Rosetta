@@ -1,0 +1,46 @@
+name: Schema gap
+description: You wanted to express something the schema doesn't support.
+title: "[schema-gap] <one-line summary>"
+labels: ["schema-gap"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Schema gaps are useful signal — they tell us what real shortcuts can't be expressed today. Don't work around the gap silently; flag it here so v0 → v1 schema changes are driven by actual contributor needs.
+
+  - type: textarea
+    id: scenario
+    attributes:
+      label: What you were trying to author
+      description: The intent, app, and what action sequence or verification you needed to express.
+      placeholder: |
+        I wanted to author a shortcut that toggles a feature whose post-state isn't visible in the AX tree but IS visible in a specific region of the screen. There's no `screenshot_diff` in the inverse direction (verify-something-DID-change), and `interpret_check` is overkill for a deterministic pixel diff.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Schema area
+      options:
+        - Action types (`actions[]`)
+        - Verification types (`verification`)
+        - Parameters
+        - Workflow (`workflow.json`)
+        - Meta (`meta.json`)
+        - Cross-platform key mappings
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: current_options
+    attributes:
+      label: What you tried
+      description: Existing schema options you considered and why they didn't fit.
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal (optional)
+      description: If you have a concrete shape in mind, sketch it. Doesn't have to be final.

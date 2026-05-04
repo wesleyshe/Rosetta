@@ -1,0 +1,74 @@
+name: Shortcut doesn't work
+description: A shortcut from the registry fails or behaves wrong on your machine.
+title: "[shortcut] <app>: <shortcut id> — <one-line summary>"
+labels: ["shortcut-broken"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. The most actionable bug reports are version-specific — the registry intentionally lets multiple methods compete on reliability, so knowing which version of which app a shortcut breaks on is the lever that lets us fix or downrank it.
+
+  - type: input
+    id: app_id
+    attributes:
+      label: App
+      description: The `app_id` from the registry (e.g. `photoshop`, `vscode`).
+      placeholder: photoshop
+    validations:
+      required: true
+
+  - type: input
+    id: shortcut_id
+    attributes:
+      label: Shortcut id
+      description: The shortcut's `id` from `registry/apps/<app>/shortcuts.json`.
+      placeholder: open-file
+    validations:
+      required: true
+
+  - type: input
+    id: app_version
+    attributes:
+      label: App version
+      description: The exact version of the target app.
+      placeholder: "Photoshop 26.1"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Windows
+        - Linux
+    validations:
+      required: true
+
+  - type: input
+    id: os_version
+    attributes:
+      label: OS version
+      placeholder: "macOS 14.5"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: What happened
+      description: What did you ask the agent to do, and what did it do instead? Verify output, screenshots, or the relevant slice of `~/Library/Logs/Claude/mcp-server-rosetta.log` are all useful.
+      placeholder: |
+        Asked: "Open /Users/me/Desktop/cat.jpg in Photoshop."
+        Agent ran open-file shortcut.
+        verify returned passed: false, error_class: "interpret_mismatch".
+        The file open dialog appeared but the path field already had focus on something else, so cmd+shift+g pasted into the wrong field.
+    validations:
+      required: true
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Workaround (optional)
+      description: If you found a different shortcut or sequence that worked, mention it. Helps us decide whether to fix the broken shortcut or downrank it.

@@ -1,0 +1,75 @@
+name: Install broken
+description: A step in docs/install.md broke for you on a fresh machine.
+title: "[install] <step where it broke>: <one-line summary>"
+labels: ["install-broken"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Install regressions are high-priority — every broken first-run is a contributor we lose. Be specific about which step you got to before things broke.
+
+  - type: dropdown
+    id: step
+    attributes:
+      label: Which step broke
+      options:
+        - "Step 1: Clone and build"
+        - "Step 2: Wire it into your AI client"
+        - "Step 3: macOS permissions"
+        - "Step 4: Verify the install (14 tools didn't appear)"
+        - "Step 5: Try the use skill"
+        - "Step 6: GitHub auth"
+        - "Step 7: Run the explore skill"
+        - "Other / not sure"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Windows
+        - Linux
+    validations:
+      required: true
+
+  - type: input
+    id: os_version
+    attributes:
+      label: OS version
+      placeholder: "macOS 14.5"
+    validations:
+      required: true
+
+  - type: input
+    id: client
+    attributes:
+      label: AI client
+      placeholder: "Claude Desktop 0.7.x"
+    validations:
+      required: true
+
+  - type: input
+    id: node_version
+    attributes:
+      label: Node version
+      description: Output of `node -v`.
+      placeholder: "v20.11.1"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: What you saw
+      description: Exact error message, command output, or screenshot. The MCP log at `~/Library/Logs/Claude/mcp-server-rosetta.log` is often the most useful artifact.
+    validations:
+      required: true
+
+  - type: textarea
+    id: what_helped
+    attributes:
+      label: What you tried (optional)
+      description: Steps you took to debug, anything in [Troubleshooting](https://github.com/wesleyshe/Rosetta/blob/main/docs/install.md#troubleshooting) you tried that did or didn't help.
