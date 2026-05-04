@@ -1,15 +1,15 @@
 // os: app_info (Phase 3) + screenshot / action / readAxTree (Phase 4).
 //
 // Phase 4 implements macOS fully and stubs Windows / Linux. Cross-platform
-// substep is Phase 7 polish, not Part 1.
+// substep is Phase 7c+ polish, not Part 1.
 //
-// Screenshot: shells to `screencapture -x -t png` on macOS. The `nut-js`
-// dep is wired in but used only for keyboard/mouse — its image-capture path
-// would require a separate PNG-encode step that platform tools provide
-// natively.
+// Screenshot: shells to `screencapture -x -t png` on macOS.
 //
-// Action: nut-js for `key`, `key_combo`, `type_text`, and coordinate `click`.
-// `menu` walks System Events on macOS. `open_app` shells to `open -a`. The
+// Action (macOS): all six action types (`key`, `key_combo`, `type_text`,
+// coordinate `click`, `menu`, `open_app`) route through osascript and
+// `tell application "System Events"`, except `open_app` which shells to
+// `open -a`. See `docs/design-rationale.md` § "Why macOS action dispatch
+// goes through AppleScript" for the TCC-attribution rationale. The
 // `click.target.ax_path` form is not implemented in v0 — use coordinates.
 //
 // AX tree (read_ax_tree): scoped to the named rules used by the seed
@@ -17,6 +17,8 @@
 // query). The other four rules (command_palette_visible, sidebar_visible,
 // terminal_panel_visible, rename_widget_visible) return ok:false with a
 // "fall back to interpret_check" hint until Phase 7 polish lands them.
+//
+// Windows / Linux remain stubbed for Phase 7c+.
 
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -24,8 +26,6 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-
-import { keyboard, mouse, Key, Point } from "@nut-tree-fork/nut-js";
 
 import { backendUrl, currentPlatform, localRegistryPath, type Platform } from "./config.js";
 import { listApps } from "./registry.js";
@@ -266,65 +266,120 @@ export interface ActionResult {
   details?: unknown;
 }
 
-// ---------- key parsing ----------
+// ---------- AppleScript helpers ----------
 
-const KEY_PUNCT: Record<string, string> = {
-  "-": "Minus", "=": "Equal", "[": "LeftBracket", "]": "RightBracket",
-  "\\": "Backslash", ";": "Semicolon", "'": "Quote", ",": "Comma",
-  ".": "Period", "/": "Slash",
+/** Escape a string for embedding inside an AppleScript double-quoted literal. */
+function escapeAppleScriptString(s: string): string {
+  return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+/**
+ * Translation of a key name into an AppleScript-emittable form.
+ *
+ * `code` keys go out as `key code N` (position-based macOS virtual key
+ * codes, used only for special keys whose location is fixed across
+ * keyboard layouts). `char` keys go out as `keystroke "x"` and respect
+ * the user's active layout, which is critical for non-QWERTY users
+ * (Dvorak `cmd+s` must hit the Save shortcut, not whichever physical
+ * key happens to sit at QWERTY-S).
+ */
+type KeyTranslation =
+  | { form: "code"; value: number }
+  | { form: "char"; value: string };
+
+const SPECIAL_KEY_CODES: Record<string, number> = {
+  enter: 36,
+  return: 36,
+  tab: 48,
+  space: 49,
+  spacebar: 49,
+  backspace: 51,
+  delete: 117,
+  del: 117,
+  escape: 53,
+  esc: 53,
+  up: 126,
+  uparrow: 126,
+  down: 125,
+  downarrow: 125,
+  left: 123,
+  leftarrow: 123,
+  right: 124,
+  rightarrow: 124,
+  home: 115,
+  end: 119,
+  pageup: 116,
+  pagedown: 121,
 };
 
-function parseKeyName(name: string): Key {
+// F1..F19, indexed at [n-1]. Apple's virtual key codes for function keys
+// are not contiguous, so this is a literal table.
+const FUNCTION_KEY_CODES: number[] = [
+  122, 120, 99, 118, 96, 97, 98, 100, 101, 109,
+  103, 111, 105, 107, 113, 106, 64, 79, 80,
+];
+
+/** Printable punctuation accepted as key names. The value is the literal
+ *  character that gets emitted via `keystroke`. */
+const PUNCT_CHARS: Record<string, string> = {
+  "`": "`",
+  backtick: "`",
+  grave: "`",
+  "-": "-",
+  minus: "-",
+  "=": "=",
+  equal: "=",
+  "[": "[",
+  leftbracket: "[",
+  "]": "]",
+  rightbracket: "]",
+  "\\": "\\",
+  backslash: "\\",
+  ";": ";",
+  semicolon: ";",
+  "'": "'",
+  quote: "'",
+  ",": ",",
+  comma: ",",
+  ".": ".",
+  period: ".",
+  "/": "/",
+  slash: "/",
+};
+
+function translateKey(name: string): KeyTranslation {
   const n = name.trim().toLowerCase();
-  // Modifiers
-  if (n === "cmd" || n === "command" || n === "meta" || n === "win") return Key.LeftCmd;
-  if (n === "ctrl" || n === "control") return Key.LeftControl;
-  if (n === "shift") return Key.LeftShift;
-  if (n === "alt" || n === "option" || n === "opt") return Key.LeftAlt;
-  // Named special keys
-  const named: Record<string, Key> = {
-    enter: Key.Return, return: Key.Return,
-    escape: Key.Escape, esc: Key.Escape,
-    tab: Key.Tab, space: Key.Space, spacebar: Key.Space,
-    backspace: Key.Backspace, delete: Key.Delete, del: Key.Delete,
-    up: Key.Up, uparrow: Key.Up,
-    down: Key.Down, downarrow: Key.Down,
-    left: Key.Left, leftarrow: Key.Left,
-    right: Key.Right, rightarrow: Key.Right,
-    home: Key.Home, end: Key.End,
-    pageup: Key.PageUp, pagedown: Key.PageDown,
-    "`": Key.Grave, backtick: Key.Grave, grave: Key.Grave,
-  };
-  if (n in named) return named[n];
-  // Function keys F1..F24
+  if (n in SPECIAL_KEY_CODES) {
+    return { form: "code", value: SPECIAL_KEY_CODES[n] };
+  }
   const fmatch = /^f(\d+)$/.exec(n);
   if (fmatch) {
     const num = parseInt(fmatch[1], 10);
-    if (num >= 1 && num <= 24) {
-      const k = (Key as unknown as Record<string, Key>)[`F${num}`];
-      if (k !== undefined) return k;
+    if (num >= 1 && num <= FUNCTION_KEY_CODES.length) {
+      return { form: "code", value: FUNCTION_KEY_CODES[num - 1] };
     }
   }
-  // Letter
-  if (/^[a-z]$/.test(n)) {
-    const k = (Key as unknown as Record<string, Key>)[n.toUpperCase()];
-    if (k !== undefined) return k;
-  }
-  // Digit
-  if (/^\d$/.test(n)) {
-    const k = (Key as unknown as Record<string, Key>)[`Num${n}`];
-    if (k !== undefined) return k;
-  }
-  // Punctuation
-  if (n in KEY_PUNCT) {
-    const k = (Key as unknown as Record<string, Key>)[KEY_PUNCT[n]];
-    if (k !== undefined) return k;
-  }
+  if (/^[a-z]$/.test(n)) return { form: "char", value: n };
+  if (/^\d$/.test(n)) return { form: "char", value: n };
+  if (n in PUNCT_CHARS) return { form: "char", value: PUNCT_CHARS[n] };
   throw new Error(`unknown key: "${name}"`);
 }
 
-function parseKeyCombo(combo: string): Key[] {
-  return combo.split("+").map(parseKeyName);
+/** Translate a list of modifier names into an AppleScript `using { ... }`
+ *  clause. Returns the empty string when there are no modifiers, otherwise
+ *  a string with a leading space (e.g. ` using {command down, shift down}`).
+ *  Throws on unknown names. */
+function buildModifiersClause(modifiers: string[]): string {
+  if (modifiers.length === 0) return "";
+  const parts = modifiers.map((m) => {
+    const n = m.trim().toLowerCase();
+    if (n === "cmd" || n === "command" || n === "meta" || n === "win") return "command down";
+    if (n === "shift") return "shift down";
+    if (n === "alt" || n === "option" || n === "opt") return "option down";
+    if (n === "ctrl" || n === "control") return "control down";
+    throw new Error(`unknown modifier: "${m}"`);
+  });
+  return ` using {${parts.join(", ")}}`;
 }
 
 function resolvePlatformKeys(
@@ -337,53 +392,121 @@ function resolvePlatformKeys(
   return k;
 }
 
+// ---------- macOS action helpers (osascript) ----------
+
+async function keyMacos(name: string): Promise<ActionResult> {
+  try {
+    const t = translateKey(name);
+    const stmt =
+      t.form === "code"
+        ? `key code ${t.value}`
+        : `keystroke "${escapeAppleScriptString(t.value)}"`;
+    const script = `tell application "System Events" to ${stmt}`;
+    await execFileAsync("osascript", ["-e", script], { timeout: 5000 });
+    return { ok: true, details: { key: name } };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+}
+
+async function keyComboMacos(combo: string): Promise<ActionResult> {
+  try {
+    const tokens = combo.split("+").map((t) => t.toLowerCase());
+    if (tokens.length === 0 || tokens[0] === "") {
+      throw new Error(`empty key_combo: "${combo}"`);
+    }
+    const keyName = tokens[tokens.length - 1];
+    const modifiers = tokens.slice(0, -1);
+    const t = translateKey(keyName);
+    const using = buildModifiersClause(modifiers);
+    const stmt =
+      t.form === "code"
+        ? `key code ${t.value}${using}`
+        : `keystroke "${escapeAppleScriptString(t.value)}"${using}`;
+    const script = `tell application "System Events" to ${stmt}`;
+    await execFileAsync("osascript", ["-e", script], { timeout: 5000 });
+    return { ok: true, details: { combo } };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+}
+
+async function typeTextMacos(text: string): Promise<ActionResult> {
+  if (text.length === 0) {
+    return { ok: true, details: { text_length: 0 } };
+  }
+  try {
+    const script = `tell application "System Events" to keystroke "${escapeAppleScriptString(text)}"`;
+    await execFileAsync("osascript", ["-e", script], { timeout: 5000 });
+    return { ok: true, details: { text_length: text.length } };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+}
+
+async function clickMacos(target: { x: number; y: number }): Promise<ActionResult> {
+  const { x, y } = target;
+  const script = `
+    tell application "System Events"
+      tell (first application process whose frontmost is true)
+        click at {${x}, ${y}}
+      end tell
+    end tell
+  `;
+  try {
+    await execFileAsync("osascript", ["-e", script], { timeout: 5000 });
+    return { ok: true, details: { x, y } };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+}
+
 // ---------- action dispatch ----------
 
+// All six macOS action branches dispatch through `osascript` so the
+// privileged synthetic-input call is attributed to System Events (which
+// holds Accessibility entitlement by default), not to the calling node
+// binary (which doesn't, when Claude.app spawns the MCP via its
+// disclaimer helper). See `docs/design-rationale.md` § "Why macOS action
+// dispatch goes through AppleScript" for the full TCC-attribution story.
+//
+// Note: coordinate `click` here is AX-mediated via System Events, not a
+// pixel-level CGEventPost. Apps with clean AX trees (most native macOS
+// apps, Electron) accept the click cleanly. Apps where the click point
+// doesn't resolve to an AX element (e.g., the Photoshop canvas interior)
+// may swallow the click silently. True pixel clicks would need cliclick
+// or a signed native helper (parking-lot 7); not in scope for v0.
 export async function action(spec: ActionSpec): Promise<ActionResult> {
   const platform = currentPlatform();
   if (platform !== "macos") {
     return {
       ok: false,
-      error: `action not yet implemented on ${platform} (Phase 7 polish; macOS works in Phase 4)`,
+      error: `action not yet implemented on ${platform} (Phase 7c+ polish; macOS works in Phase 4)`,
     };
   }
-  try {
-    switch (spec.type) {
-      case "key": {
-        const k = parseKeyName(spec.key);
-        await keyboard.type(k);
-        return { ok: true, details: { key: spec.key } };
-      }
-      case "key_combo": {
-        const combo = resolvePlatformKeys(spec.keys, platform);
-        const keys = parseKeyCombo(combo);
-        await keyboard.type(...keys);
-        return { ok: true, details: { combo } };
-      }
-      case "type_text": {
-        await keyboard.type(spec.text);
-        return { ok: true, details: { text_length: spec.text.length } };
-      }
-      case "click": {
-        if ("ax_path" in spec.target) {
-          return {
-            ok: false,
-            error:
-              "click via ax_path is not implemented in v0 — pass {x, y} coordinates, or wait for Phase 7",
-          };
-        }
-        const { x, y } = spec.target;
-        await mouse.setPosition(new Point(x, y));
-        await mouse.leftClick();
-        return { ok: true, details: { x, y } };
-      }
-      case "menu":
-        return await menuMacos(spec.path);
-      case "open_app":
-        return await openAppMacos(spec);
+  switch (spec.type) {
+    case "key":
+      return await keyMacos(spec.key);
+    case "key_combo": {
+      const combo = resolvePlatformKeys(spec.keys, platform);
+      return await keyComboMacos(combo);
     }
-  } catch (e) {
-    return { ok: false, error: (e as Error).message };
+    case "type_text":
+      return await typeTextMacos(spec.text);
+    case "click": {
+      if ("ax_path" in spec.target) {
+        return {
+          ok: false,
+          error:
+            "click via ax_path is not implemented in v0 — pass {x, y} coordinates, or wait for Phase 7",
+        };
+      }
+      return await clickMacos(spec.target);
+    }
+    case "menu":
+      return await menuMacos(spec.path);
+    case "open_app":
+      return await openAppMacos(spec);
   }
 }
 
@@ -391,8 +514,7 @@ async function menuMacos(path: string[]): Promise<ActionResult> {
   if (path.length === 0) return { ok: false, error: "menu path empty" };
   // For path ["A", "B", "C"], click:
   //   menu item "C" of menu "B" of menu item "B" of menu "A" of menu bar item "A" of menu bar 1
-  const escape = (s: string) => s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-  const top = `menu bar item "${escape(path[0])}" of menu bar 1`;
+  const top = `menu bar item "${escapeAppleScriptString(path[0])}" of menu bar 1`;
   if (path.length === 1) {
     // Just hover/open the top-level menu — uncommon as a leaf, but handle it.
     const script = `
@@ -410,11 +532,11 @@ async function menuMacos(path: string[]): Promise<ActionResult> {
     }
   }
   // Build the chain from inside out.
-  let chain = `menu "${escape(path[0])}" of ${top}`;
+  let chain = `menu "${escapeAppleScriptString(path[0])}" of ${top}`;
   for (let i = 1; i < path.length - 1; i++) {
-    chain = `menu "${escape(path[i])}" of menu item "${escape(path[i])}" of ${chain}`;
+    chain = `menu "${escapeAppleScriptString(path[i])}" of menu item "${escapeAppleScriptString(path[i])}" of ${chain}`;
   }
-  const target = `menu item "${escape(path[path.length - 1])}" of ${chain}`;
+  const target = `menu item "${escapeAppleScriptString(path[path.length - 1])}" of ${chain}`;
   const script = `
     tell application "System Events"
       tell (first application process whose frontmost is true)

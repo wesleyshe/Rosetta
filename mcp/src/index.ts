@@ -185,7 +185,7 @@ const tools = [
   {
     name: "os_action",
     description:
-      "Perform a single OS-level input action: key, key_combo, type_text, click, menu, or open_app. Discriminated by `type`. macOS is fully implemented in Phase 4 via nut-js (input) and AppleScript (menus); Windows/Linux throw. (Conceptually `os.action`.)",
+      "Perform a single OS-level input action: key, key_combo, type_text, click, menu, or open_app. Discriminated by `type`. macOS is fully implemented via osascript / System Events; Windows/Linux throw. Coordinate `click` is AX-mediated (works in apps with clean accessibility trees, may fail silently on opaque surfaces like Photoshop's canvas interior). (Conceptually `os.action`.)",
     inputSchema: {
       type: "object" as const,
       properties: {
