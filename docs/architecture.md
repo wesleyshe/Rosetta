@@ -308,7 +308,7 @@ All tools live under one MCP server. TypeScript, packaged for `npx @rosetta-skil
 ### OS tools
 
 - `os.app_info(app_name)` → `{ installed: bool, version, platform, bundle_id?, pid?, error? }`. The `error` field is populated when the platform probe is stubbed (Windows / Linux in v0) or fails non-fatally (e.g., `mdfind` missing or returning nothing).
-- `os.screenshot(region?)` → returns image (base64 or file path)
+- `os.screenshot({ region?, format? })` → returns a text block (`{path, bytes, region?, format}`) plus an MCP image content block carrying the actual image bytes via the multimodal channel. Default `format` is `"jpg"` (smaller payloads keep us under Claude Desktop's tool-result text-content limit). Pass `format: "png"` for pixel-stable comparisons (screenshot_diff verification).
 - `os.read_ax_tree(window?)` → returns accessibility tree as structured JSON
 - `os.action(spec)` — discriminated union:
   - `{ type: "key", key: "enter" }`
@@ -326,7 +326,7 @@ All tools live under one MCP server. TypeScript, packaged for `npx @rosetta-skil
   - `screenshot_diff` — capture before/after, compare regions
   - `file_check` — file exists, hash matches, content matches
   - `value_compare` — compare two strings/numbers
-  - `interpret_check` — pass to `interpret()` and check the answer
+  - `interpret_check` — capture a screenshot and return `passed: null` with `error_class: "agent_must_judge"` plus the image attached as MCP image content; the host agent answers the yes/no question with its own native vision. The standalone `interpret` tool remains available as a niche escape hatch for explicit server-side LLM calls but is no longer used on the use path.
   - `wait_for_idle` — poll responsiveness until the frontmost app is idle, or fail with `wait_for_idle_timeout` after `max_seconds`. Universal primitive added Phase 7a (2026-05-03) for apps with loading states (Photoshop filters / saves, AutoCAD renders, Excel heavy recalcs, Figma exports). Spec: `{ type: "wait_for_idle", max_seconds: number, idle_seconds?: number }`. Default `idle_seconds = 1`. Implementation polls a lightweight osascript probe every `idle_seconds`; the probe IS the rate limiter (each probe runs with that interval as its timeout). macOS-only in v0; Windows/Linux return `wait_for_idle_not_implemented`.
 
 ### Interpretation tool
@@ -401,27 +401,37 @@ task on a desktop application or website, follow this protocol:
 5. Open the app via `os.action({ type: "open_app", ... })` if it isn't already.
 6. Execute the chosen shortcut's actions in order via `os.action(...)`.
 7. After the actions, run the shortcut's `verification` spec via `verify(...)`.
-   - 7a. If `verify` returns `passed: true`, treat the shortcut as successful and
-     continue to step 8.
-   - 7b. **AX-rule fallback (v0).** If `verify` returns `passed: false` with
-     `error_class: "ax_rule_not_implemented"`, the rule is unimplemented on this
-     platform — this is NOT a real verification failure. Inline, do not escalate
-     to step 9: capture a screenshot via `os.screenshot()`, then call `interpret`
-     with a yes/no question synthesized from the shortcut's `intent`, e.g.
-     `"Looking at this screen, has [intent] just happened? Answer yes or no."`
-     Treat the model's final yes/no as the verification result. If yes, treat the
-     shortcut as successful; if no, treat it as a verification failure and
-     proceed to step 9. Phase 7 polish lands real AX rules and this fallback
-     becomes unnecessary in practice.
-   - 7c. Any other `passed: false` outcome (e.g. `error_class: "verification_mismatch"`,
-     `"interpret_mismatch"`, `"file_not_found"`, etc.) is a real failure — go to
-     step 9.
+   Handle the result based on its shape:
+   - 7a. If `passed: true`, treat the shortcut as successful and continue to
+     step 8.
+   - 7b. If `passed: null` with `error_class: "agent_must_judge"`
+     (interpret_check verifications), the result includes an attached
+     screenshot image and a yes/no question. Look at the image with your
+     native vision. Answer the question. If your answer matches the
+     `expected` value (typically "yes"), treat the shortcut as successful.
+     If not, set `error_class: "interpret_mismatch"` for step 8 and proceed
+     to step 9.
+   - 7c. **AX-rule fallback (v0).** If `passed: false` with
+     `error_class: "ax_rule_not_implemented"`, the rule is unimplemented on
+     this platform; this is NOT a real verification failure. Inline, do not
+     escalate to step 9: call `os.screenshot()` (the result includes the
+     screenshot image itself via the multimodal channel). Look at it and
+     answer a yes/no question synthesized from the shortcut's `intent`
+     (e.g. "Looking at this screen, has [intent] just happened?"). If yes,
+     treat as successful; if no, treat as a verification failure
+     (`error_class: "interpret_mismatch"`) and proceed to step 9. Phase 7
+     polish lands real AX rules and this fallback becomes unnecessary in
+     practice.
+   - 7d. Any other `passed: false` outcome (e.g. `verification_mismatch`,
+     `file_not_found`, etc.) is a real failure, go to step 9.
 8. Immediately call `registry.report_execution` with the verification result,
    including pass/fail, error class on fail, app version, and platform. Do this
-   regardless of outcome. When the 7b fallback ran, report success based on the
-   yes/no answer; if it answered no, set `error_class: "interpret_mismatch"`.
-   Reliability scores in the registry depend on this feedback loop. No GitHub
-   authentication is required.
+   regardless of outcome. When the 7b judgment ran, report success based on
+   your yes/no answer; if no, set `error_class: "interpret_mismatch"`. When
+   the 7c fallback ran, report success based on the yes/no answer; if it
+   answered no, set `error_class: "interpret_mismatch"`. Reliability scores
+   in the registry depend on this feedback loop. No GitHub authentication is
+   required.
 9. If verification fails, follow the workflow's `failure_recovery` list:
    first retry once (and report that attempt too), then try the next-ranked
    shortcut, then attempt vision-based discovery using `os.screenshot()` +
@@ -471,22 +481,27 @@ protocol:
    this document. Required fields: id, intent, parameters, platforms,
    app_versions, method, actions, verification, metadata.
 8. Execute the draft shortcut once and run its verification. If `verify`
-   returns `error_class: "ax_rule_not_implemented"`, apply the same inline
-   fallback the use skill uses (step 7b in that skill): screenshot +
-   `interpret` with a yes/no question synthesized from the shortcut's intent.
-   Treat the yes/no answer as the verification result for save_finding
-   purposes. Save the finding locally via `explore.save_finding({
-   shortcut_spec, status })`:
+   returns `passed: null` with `error_class: "agent_must_judge"` (the
+   interpret_check shape — see use-skill step 7b), the result carries an
+   attached screenshot; look at it with your native vision and judge the
+   yes/no question against the `expected` value. If `verify` returns
+   `passed: false` with `error_class: "ax_rule_not_implemented"`, apply the
+   same inline AX-rule fallback the use skill uses (step 7c in that skill):
+   `os.screenshot()` and a yes/no question synthesized from the shortcut's
+   intent, judged with your own vision. Treat the yes/no answer as the
+   verification result for save_finding purposes. Save the finding locally
+   via `explore.save_finding({ shortcut_spec, status })`:
    - `status: "verified"` if the shortcut ran and verification passed
-     (including a fallback-yes outcome).
+     (including a yes-judgment outcome).
    - `status: "rejected_by_self"` if the shortcut failed verification — this
      covers (i) any real `passed: false` from `verify` (e.g.
      `verification_mismatch`, `file_not_found`, `interpret_mismatch`),
-     (ii) a fallback-no outcome from the ax_rule_not_implemented path, and
-     (iii) candidates that have no clean keyboard or accessibility path at
-     all. Capture the reason in `verification_log`. Do not submit rejected
-     findings; record them so future resumes don't re-attempt the same dead
-     ends.
+     (ii) a no-judgment from the agent_must_judge path,
+     (iii) a no-judgment from the ax_rule_not_implemented fallback path,
+     and (iv) candidates that have no clean keyboard or accessibility path
+     at all. Capture the reason in `verification_log`. Do not submit
+     rejected findings; record them so future resumes don't re-attempt the
+     same dead ends.
    - `status: "drafted"` only as a transient state during reasoning. Always
      update to `verified` or `rejected_by_self` before moving on.
 9. Periodically call `explore.budget_status()`. When `should_stop_discovering`

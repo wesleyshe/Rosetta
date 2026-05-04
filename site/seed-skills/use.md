@@ -11,27 +11,37 @@ task on a desktop application or website, follow this protocol:
 5. Open the app via `os.action({ type: "open_app", ... })` if it isn't already.
 6. Execute the chosen shortcut's actions in order via `os.action(...)`.
 7. After the actions, run the shortcut's `verification` spec via `verify(...)`.
-   - 7a. If `verify` returns `passed: true`, treat the shortcut as successful and
-     continue to step 8.
-   - 7b. **AX-rule fallback (v0).** If `verify` returns `passed: false` with
-     `error_class: "ax_rule_not_implemented"`, the rule is unimplemented on this
-     platform — this is NOT a real verification failure. Inline, do not escalate
-     to step 9: capture a screenshot via `os.screenshot()`, then call `interpret`
-     with a yes/no question synthesized from the shortcut's `intent`, e.g.
-     `"Looking at this screen, has [intent] just happened? Answer yes or no."`
-     Treat the model's final yes/no as the verification result. If yes, treat the
-     shortcut as successful; if no, treat it as a verification failure and
-     proceed to step 9. Phase 7 polish lands real AX rules and this fallback
-     becomes unnecessary in practice.
-   - 7c. Any other `passed: false` outcome (e.g. `error_class: "verification_mismatch"`,
-     `"interpret_mismatch"`, `"file_not_found"`, etc.) is a real failure — go to
-     step 9.
+   Handle the result based on its shape:
+   - 7a. If `passed: true`, treat the shortcut as successful and continue to
+     step 8.
+   - 7b. If `passed: null` with `error_class: "agent_must_judge"`
+     (interpret_check verifications), the result includes an attached
+     screenshot image and a yes/no question. Look at the image with your
+     native vision. Answer the question. If your answer matches the
+     `expected` value (typically "yes"), treat the shortcut as successful.
+     If not, set `error_class: "interpret_mismatch"` for step 8 and proceed
+     to step 9.
+   - 7c. **AX-rule fallback (v0).** If `passed: false` with
+     `error_class: "ax_rule_not_implemented"`, the rule is unimplemented on
+     this platform; this is NOT a real verification failure. Inline, do not
+     escalate to step 9: call `os.screenshot()` (the result includes the
+     screenshot image itself via the multimodal channel). Look at it and
+     answer a yes/no question synthesized from the shortcut's `intent`
+     (e.g. "Looking at this screen, has [intent] just happened?"). If yes,
+     treat as successful; if no, treat as a verification failure
+     (`error_class: "interpret_mismatch"`) and proceed to step 9. Phase 7
+     polish lands real AX rules and this fallback becomes unnecessary in
+     practice.
+   - 7d. Any other `passed: false` outcome (e.g. `verification_mismatch`,
+     `file_not_found`, etc.) is a real failure, go to step 9.
 8. Immediately call `registry.report_execution` with the verification result,
    including pass/fail, error class on fail, app version, and platform. Do this
-   regardless of outcome. When the 7b fallback ran, report success based on the
-   yes/no answer; if it answered no, set `error_class: "interpret_mismatch"`.
-   Reliability scores in the registry depend on this feedback loop. No GitHub
-   authentication is required.
+   regardless of outcome. When the 7b judgment ran, report success based on
+   your yes/no answer; if no, set `error_class: "interpret_mismatch"`. When
+   the 7c fallback ran, report success based on the yes/no answer; if it
+   answered no, set `error_class: "interpret_mismatch"`. Reliability scores
+   in the registry depend on this feedback loop. No GitHub authentication is
+   required.
 9. If verification fails, follow the workflow's `failure_recovery` list:
    first retry once (and report that attempt too), then try the next-ranked
    shortcut, then attempt vision-based discovery using `os.screenshot()` +

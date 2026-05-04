@@ -361,6 +361,14 @@ Validation references: tested 2026-05-03. Test 1 (osascript-from-terminal): keys
 
 ---
 
+## Why interpret_check is judged by the agent, not the MCP
+
+The original Phase 4 implementation routed `verify(interpret_check)` through a server-side LLM call (default Anthropic claude-haiku-4-5). The Phase 7a Part 3 Photoshop smoke surfaced two blockers. First, it required an Anthropic API key on the use path; the use seed skill is supposed to be unauthenticated for the user, so a key requirement on every interpret_check verification would gate first-run usage on a developer credential. Second, the screenshot bytes flowed through the MCP tool-result text channel as base64, and Claude Desktop rejected payloads above roughly 1MB; full-resolution Retina screenshots overshot that threshold immediately.
+
+The fix in Phase 7b#1.5 collapses both blockers. `verify(interpret_check)` now captures a screenshot, returns `passed: null` with `error_class: "agent_must_judge"`, and attaches the image as a separate MCP image content block alongside the text result. The host agent answers the yes/no question with its own native vision and reports success or failure to `registry.report_execution`. No API key is needed on the use path, and the image flows through the multimodal channel which has its own size budget rather than competing with text content. The standalone `interpret` tool stays in the codebase as a niche escape hatch for callers that explicitly want a server-side LLM judgment, but it is no longer in the use-skill's hot path.
+
+---
+
 ## What was almost a different product
 
 A few framings West and I considered and rejected. Recording these so the project doesn't accidentally drift back into them:

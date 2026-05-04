@@ -162,7 +162,7 @@ const tools = [
   {
     name: "os_screenshot",
     description:
-      "Capture a screenshot of the full screen or an optional rectangular region. Returns `{path, base64, bytes, region?}`. macOS only in Phase 4 (uses `screencapture`); Windows/Linux throw. (Conceptually `os.screenshot`.)",
+      "Capture a screenshot of the full screen or an optional rectangular region. Returns a text block with `{path, bytes, region?, format}` AND a separate MCP image content block carrying the actual image bytes via the multimodal channel — the agent sees the image directly with its native vision (no base64 in JSON). Supports `format: \"jpg\"` (default, smaller) or `format: \"png\"` (use for pixel-stable comparisons such as screenshot_diff verification). macOS only in Phase 4 (uses `screencapture`); Windows/Linux throw. (Conceptually `os.screenshot`.)",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -177,6 +177,11 @@ const tools = [
           },
           required: ["x", "y", "width", "height"],
           additionalProperties: false,
+        },
+        format: {
+          type: "string",
+          enum: ["png", "jpg"],
+          description: "Image format. Default jpg (smaller). Use png for pixel-stable comparisons (screenshot_diff verification).",
         },
       },
       additionalProperties: false,
@@ -250,7 +255,7 @@ const tools = [
   {
     name: "verify",
     description:
-      "Run a single verification spec (one of: ax_tree_assertion, dom_assertion, screenshot_diff, file_check, value_compare, interpret_check). Returns `{passed, error_class?, observation?, message?}`. Stateful AX rules (names ending _toggled or _changed) and screenshot_diff require `options.observation.before` captured before the action ran.",
+      "Run a single verification spec (one of: ax_tree_assertion, dom_assertion, screenshot_diff, file_check, value_compare, interpret_check, wait_for_idle). Returns `{passed, error_class?, observation?, message?}`. Stateful AX rules (names ending _toggled or _changed) and screenshot_diff require `options.observation.before` captured before the action ran. `interpret_check` verifications return `passed: null` with `error_class: \"agent_must_judge\"` and an attached screenshot image — the agent should look at the image, judge yes/no based on the question, and report success/failure to `registry_report_execution` accordingly (use `error_class: \"interpret_mismatch\"` on no).",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -297,11 +302,12 @@ const tools = [
   {
     name: "interpret",
     description:
-      "Pass an image (and a question) to a vision model and return the model's natural-language answer. Phase 4 implements Anthropic only (default model `claude-haiku-4-5`); openai and gemini throw `provider_not_implemented`. Provider/model overridable via env (ROSETTA_INTERPRET_PROVIDER, ROSETTA_INTERPRET_MODEL).",
+      "Pass an image (and a question) to a vision model and return the model's natural-language answer. Niche escape hatch — the use seed skill no longer routes through this tool (verify(interpret_check) attaches the screenshot directly for the agent's own vision in v0). Pass either `image_base64` (inline bytes) or `image_path` (server-side file read); media type auto-detected from magic bytes (PNG vs JPEG). Phase 4 implements Anthropic only (default model `claude-haiku-4-5`); openai and gemini throw `provider_not_implemented`. Provider/model overridable via env (ROSETTA_INTERPRET_PROVIDER, ROSETTA_INTERPRET_MODEL).",
     inputSchema: {
       type: "object" as const,
       properties: {
-        image_base64: { type: "string", description: "Base64-encoded PNG. Required for image-based interpretation." },
+        image_base64: { type: "string", description: "Base64-encoded image bytes (PNG or JPEG). Mutually exclusive with image_path." },
+        image_path: { type: "string", description: "Filesystem path to an image. Read server-side. Mutually exclusive with image_base64." },
         audio_base64: { type: "string", description: "Reserved for Phase 7+. Currently rejected." },
         question: { type: "string", description: "Natural-language question to ask about the media." },
         model: { type: "string", description: "Optional override for the provider's default model." },
@@ -443,8 +449,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
       case "os_screenshot": {
         const region = args.region as ScreenshotRegion | undefined;
-        result = await screenshot(region);
-        break;
+        const format = args.format === "png" ? "png" : "jpg";
+        const shot = await screenshot({ region, format });
+        const { base64, ...metadata } = shot;
+        return {
+          content: [
+            { type: "text", text: JSON.stringify(metadata, null, 2) },
+            {
+              type: "image",
+              data: base64,
+              mimeType: format === "png" ? "image/png" : "image/jpeg",
+            },
+          ],
+        };
       }
       case "os_action": {
         result = await osAction(args as unknown as ActionSpec);
@@ -462,7 +479,17 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const spec = args.spec as VerificationSpec | undefined;
         if (!spec || typeof spec !== "object") throw new Error("verify: spec is required");
         const options = (args.options ?? {}) as VerifyOptions;
-        result = await verify(spec, options);
+        const verifyResult = await verify(spec, options);
+        if (verifyResult._image_content) {
+          const { _image_content, ...rest } = verifyResult;
+          return {
+            content: [
+              { type: "text", text: JSON.stringify(rest, null, 2) },
+              { type: "image", data: _image_content.data, mimeType: _image_content.mimeType },
+            ],
+          };
+        }
+        result = verifyResult;
         break;
       }
       case "interpret": {

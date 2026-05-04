@@ -1,6 +1,11 @@
 // interpret(): pass post-action media (screenshot, audio in future) to a
 // vision/audio model with a question, return the answer string.
 //
+// As of Phase 7b#1.5 the use path no longer routes through this tool — the
+// agent judges interpret_check verifications using its own vision (see
+// verify.ts). interpret remains a niche escape hatch for callers that
+// explicitly want a server-side LLM judgment.
+//
 // Phase 4 implements anthropic only. Other providers throw
 // "provider_not_implemented". Provider selection via env:
 //
@@ -12,9 +17,16 @@
 // Default model is claude-haiku-4-5 — fast + vision-capable. Verifications
 // are low-stakes yes/no answers; haiku is the right grade for this.
 
+import { readFile } from "node:fs/promises";
+
 export interface InterpretInput {
-  /** Base64-encoded PNG. Required for image-based interpretation. */
+  /** Base64-encoded image bytes (PNG or JPEG). Mutually exclusive with
+   *  image_path; one of the two is required. */
   image_base64?: string;
+  /** Filesystem path to the image. Read server-side and base64-encoded
+   *  before the API call. Convenient when the caller already has a
+   *  screenshot on disk (e.g. the path returned by os_screenshot). */
+  image_path?: string;
   /** Base64-encoded audio. Reserved for future use (Phase 7+). */
   audio_base64?: string;
   /** Natural-language question to ask about the media. */
@@ -50,12 +62,36 @@ export async function interpret(input: InterpretInput): Promise<InterpretOutput>
   }
 }
 
+/** Detect image media type from the first few bytes of the decoded base64.
+ *  PNG signature is `89 50 4E 47`; everything else is treated as JPEG.
+ *  Good enough for the two formats os_screenshot emits in v0. */
+function detectImageMediaType(base64: string): "image/png" | "image/jpeg" {
+  const head = Buffer.from(base64.slice(0, 16), "base64");
+  if (
+    head.length >= 4 &&
+    head[0] === 0x89 &&
+    head[1] === 0x50 &&
+    head[2] === 0x4e &&
+    head[3] === 0x47
+  ) {
+    return "image/png";
+  }
+  return "image/jpeg";
+}
+
 async function callAnthropic(input: InterpretInput, model: string): Promise<InterpretOutput> {
   if (input.audio_base64) {
     throw new Error("audio interpretation not yet supported (Phase 7+)");
   }
-  if (!input.image_base64) {
-    throw new Error("interpret: image_base64 required for image-based interpretation");
+
+  let imageBase64: string;
+  if (input.image_path) {
+    const buf = await readFile(input.image_path);
+    imageBase64 = buf.toString("base64");
+  } else if (input.image_base64) {
+    imageBase64 = input.image_base64;
+  } else {
+    throw new Error("interpret: image_base64 or image_path required for image-based interpretation");
   }
 
   const apiKey = process.env.ROSETTA_ANTHROPIC_API_KEY ?? process.env.ANTHROPIC_API_KEY;
@@ -64,6 +100,8 @@ async function callAnthropic(input: InterpretInput, model: string): Promise<Inte
       "interpret: ROSETTA_ANTHROPIC_API_KEY (or ANTHROPIC_API_KEY) is not set"
     );
   }
+
+  const mediaType = detectImageMediaType(imageBase64);
 
   const body = {
     model,
@@ -76,8 +114,8 @@ async function callAnthropic(input: InterpretInput, model: string): Promise<Inte
             type: "image",
             source: {
               type: "base64",
-              media_type: "image/png",
-              data: input.image_base64,
+              media_type: mediaType,
+              data: imageBase64,
             },
           },
           {

@@ -34,22 +34,27 @@ protocol:
    this document. Required fields: id, intent, parameters, platforms,
    app_versions, method, actions, verification, metadata.
 8. Execute the draft shortcut once and run its verification. If `verify`
-   returns `error_class: "ax_rule_not_implemented"`, apply the same inline
-   fallback the use skill uses (step 7b in that skill): screenshot +
-   `interpret` with a yes/no question synthesized from the shortcut's intent.
-   Treat the yes/no answer as the verification result for save_finding
-   purposes. Save the finding locally via `explore.save_finding({
-   shortcut_spec, status })`:
+   returns `passed: null` with `error_class: "agent_must_judge"` (the
+   interpret_check shape — see use-skill step 7b), the result carries an
+   attached screenshot; look at it with your native vision and judge the
+   yes/no question against the `expected` value. If `verify` returns
+   `passed: false` with `error_class: "ax_rule_not_implemented"`, apply the
+   same inline AX-rule fallback the use skill uses (step 7c in that skill):
+   `os.screenshot()` and a yes/no question synthesized from the shortcut's
+   intent, judged with your own vision. Treat the yes/no answer as the
+   verification result for save_finding purposes. Save the finding locally
+   via `explore.save_finding({ shortcut_spec, status })`:
    - `status: "verified"` if the shortcut ran and verification passed
-     (including a fallback-yes outcome).
+     (including a yes-judgment outcome).
    - `status: "rejected_by_self"` if the shortcut failed verification — this
      covers (i) any real `passed: false` from `verify` (e.g.
      `verification_mismatch`, `file_not_found`, `interpret_mismatch`),
-     (ii) a fallback-no outcome from the ax_rule_not_implemented path, and
-     (iii) candidates that have no clean keyboard or accessibility path at
-     all. Capture the reason in `verification_log`. Do not submit rejected
-     findings; record them so future resumes don't re-attempt the same dead
-     ends.
+     (ii) a no-judgment from the agent_must_judge path,
+     (iii) a no-judgment from the ax_rule_not_implemented fallback path,
+     and (iv) candidates that have no clean keyboard or accessibility path
+     at all. Capture the reason in `verification_log`. Do not submit
+     rejected findings; record them so future resumes don't re-attempt the
+     same dead ends.
    - `status: "drafted"` only as a transient state during reasoning. Always
      update to `verified` or `rejected_by_self` before moving on.
 9. Periodically call `explore.budget_status()`. When `should_stop_discovering`

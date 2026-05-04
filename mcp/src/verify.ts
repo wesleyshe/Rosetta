@@ -14,7 +14,6 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
 import { readAxTree, screenshot, type AxResult, type ScreenshotResult } from "./os.js";
-import { interpret } from "./interpret.js";
 import { currentPlatform } from "./config.js";
 
 const execFileAsync = promisify(execFile);
@@ -56,8 +55,10 @@ export interface VerifyOptions {
 }
 
 export interface VerificationResult {
-  passed: boolean;
-  /** Standardized error class for telemetry. Set when passed=false. */
+  /** `null` when the agent itself must judge (interpret_check in v0). */
+  passed: boolean | null;
+  /** Standardized error class for telemetry. Set when passed=false, or
+   *  set to "agent_must_judge" when passed=null. */
   error_class?:
     | "verification_mismatch"
     | "ax_query_failed"
@@ -73,6 +74,7 @@ export interface VerificationResult {
     | "screenshot_changed_too_much"
     | "interpret_mismatch"
     | "interpret_failed"
+    | "agent_must_judge"
     | "dom_not_implemented"
     | "wait_for_idle_timeout"
     | "wait_for_idle_not_implemented"
@@ -81,6 +83,11 @@ export interface VerificationResult {
   /** Diagnostic data: what we observed, what we expected. */
   observation?: unknown;
   message?: string;
+  /** When set, the index.ts verify handler emits this as a separate
+   *  MCP image content block alongside the result text. Used by
+   *  interpret_check to surface the screenshot to the agent's native
+   *  vision. */
+  _image_content?: { data: string; mimeType: "image/png" | "image/jpeg" };
 }
 
 // ---------- public entry point ----------
@@ -352,7 +359,9 @@ async function verifyScreenshotDiff(
         "screenshot_diff requires observation.before to be a ScreenshotResult captured pre-action.",
     };
   }
-  const after = await screenshot(spec.region);
+  // PNG for pixel-stable byte comparison; JPEG would re-encode every probe
+  // and inflate the false-positive rate.
+  const after = await screenshot({ region: spec.region, format: "png" });
   const ratio = approximateDiffRatio(before.base64, after.base64);
   const max = spec.max_pixel_diff_ratio ?? 0.02;
 
@@ -390,6 +399,15 @@ function approximateDiffRatio(beforeBase64: string, afterBase64: string): number
 }
 
 // ---------- interpret_check ----------
+//
+// In v0 the MCP no longer calls a server-side vision model. Instead it
+// captures a screenshot, attaches it to the verify response as MCP image
+// content, and returns `passed: null` with `error_class: "agent_must_judge"`.
+// The host agent uses its own native vision to answer the question. This
+// removes the Anthropic API key dependency from the use path and avoids
+// the >1MB Claude Desktop tool-result text-content limit (image content
+// has a separate channel). The standalone `interpret` tool remains
+// available as a niche escape hatch for explicit server-side LLM calls.
 
 async function verifyInterpret(
   spec: Extract<VerificationSpec, { type: "interpret_check" }>,
@@ -399,28 +417,34 @@ async function verifyInterpret(
   const question = substitute(spec.question, params);
   const expected = substitute(spec.expected, params);
 
-  let answer: string;
-  let provider: string;
-  let model: string;
+  let shot: ScreenshotResult;
   try {
-    const shot = await screenshot();
-    const r = await interpret({ image_base64: shot.base64, question });
-    answer = r.answer;
-    provider = r.provider;
-    model = r.model;
+    shot = await screenshot({ format: "jpg" });
   } catch (e) {
     return {
       passed: false,
       error_class: "interpret_failed",
-      message: (e as Error).message,
+      message: `screenshot capture failed: ${(e as Error).message}`,
     };
   }
 
-  const matched = answer.toLowerCase().includes(expected.toLowerCase());
   return {
-    passed: matched,
-    error_class: matched ? undefined : "interpret_mismatch",
-    observation: { question, expected, answer, provider, model },
+    passed: null,
+    error_class: "agent_must_judge",
+    observation: {
+      question,
+      expected,
+      screenshot_path: shot.path,
+      screenshot_bytes: shot.bytes,
+    },
+    message:
+      `Look at the attached image. Answer this yes/no question: "${question}". ` +
+      `Expected answer: "${expected}". If your answer matches expected, this verification passed; ` +
+      `otherwise it failed (use error_class "interpret_mismatch" when calling registry_report_execution).`,
+    _image_content: {
+      data: shot.base64,
+      mimeType: shot.format === "png" ? "image/png" : "image/jpeg",
+    },
   };
 }
 

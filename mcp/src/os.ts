@@ -221,24 +221,35 @@ export interface ScreenshotRegion {
   height: number;
 }
 
+export interface ScreenshotOptions {
+  region?: ScreenshotRegion;
+  /** Image format. Default "jpg" — smaller payloads keep us under the
+   *  Claude Desktop tool-result size limit. Use "png" only for pixel-stable
+   *  comparisons (screenshot_diff verification). */
+  format?: "png" | "jpg";
+}
+
 export interface ScreenshotResult {
   path: string;
   base64: string;
   bytes: number;
   region?: ScreenshotRegion;
+  format: "png" | "jpg";
 }
 
-export async function screenshot(region?: ScreenshotRegion): Promise<ScreenshotResult> {
+export async function screenshot(opts: ScreenshotOptions = {}): Promise<ScreenshotResult> {
   const platform = currentPlatform();
   if (platform !== "macos") {
     throw new Error(
       `screenshot not yet implemented on ${platform} (Phase 7 polish; macOS works in Phase 4)`
     );
   }
-  const path = join(tmpdir(), `rosetta-screen-${randomUUID()}.png`);
-  const args = ["-x", "-t", "png"];
-  if (region) {
-    args.push("-R", `${region.x},${region.y},${region.width},${region.height}`);
+  const format = opts.format ?? "jpg";
+  const ext = format === "png" ? "png" : "jpg";
+  const path = join(tmpdir(), `rosetta-screen-${randomUUID()}.${ext}`);
+  const args = ["-x", "-t", ext];
+  if (opts.region) {
+    args.push("-R", `${opts.region.x},${opts.region.y},${opts.region.width},${opts.region.height}`);
   }
   args.push(path);
   try {
@@ -247,7 +258,7 @@ export async function screenshot(region?: ScreenshotRegion): Promise<ScreenshotR
     throw new Error(`screencapture failed: ${(e as Error).message}`);
   }
   const buf = readFileSync(path);
-  return { path, base64: buf.toString("base64"), bytes: buf.length, region };
+  return { path, base64: buf.toString("base64"), bytes: buf.length, region: opts.region, format };
 }
 
 // ===================== action (Phase 4) =====================
