@@ -202,7 +202,7 @@ function renderPrBody(a: PrBodyArgs): string {
     specBlock,
     "",
     `---`,
-    `_Auto-merging per Phase 6a policy. PR is preserved as audit trail._`,
+    `_Auto-merged after passing the prompt-injection reviewer. PR is preserved as audit trail._`,
     "",
   ].join("\n");
 }

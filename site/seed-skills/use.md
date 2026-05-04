@@ -29,9 +29,7 @@ task on a desktop application or website, follow this protocol:
      answer a yes/no question synthesized from the shortcut's `intent`
      (e.g. "Looking at this screen, has [intent] just happened?"). If yes,
      treat as successful; if no, treat as a verification failure
-     (`error_class: "interpret_mismatch"`) and proceed to step 9. Phase 7
-     polish lands real AX rules and this fallback becomes unnecessary in
-     practice.
+     (`error_class: "interpret_mismatch"`) and proceed to step 9.
    - 7d. Any other `passed: false` outcome (e.g. `verification_mismatch`,
      `file_not_found`, etc.) is a real failure, go to step 9.
 8. Immediately call `registry.report_execution` with the verification result,

@@ -13,12 +13,10 @@ protocol:
    the response and DO NOT re-explore those areas. Continue where you left off.
 4. Fetch `apps/{app_id}/skill.md` (the agent_primer + workflow + existing-shortcuts
    summary). Read it. This is your orientation document. **Best-effort:** if
-   the fetch returns 404, network-errors, or times out, proceed without it —
-   the endpoint is a Phase 6a deliverable and may not exist yet. In that case
-   you have no `agent_primer`; rely on step 5's wildcard lookup to learn what
-   intent strings already exist for this app, and infer terminology from those
-   strings plus your own knowledge of the app. (v0 limitation; Phase 6a
-   graduates this.)
+   the fetch returns 404, network-errors, or times out, proceed without it.
+   In that case you have no `agent_primer`; rely on step 5's wildcard lookup
+   to learn what intent strings already exist for this app, and infer
+   terminology from those strings plus your own knowledge of the app.
 5. Call `registry.lookup(app_id, "*")` to confirm what's already mapped in the
    live registry. Don't re-submit existing shortcuts. In pre-backend mode this
    doubles as your existing-capabilities orientation when step 4 degraded.
