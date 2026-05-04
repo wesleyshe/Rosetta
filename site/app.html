@@ -47,9 +47,6 @@
   </footer>
 
   <script>
-    // Reliability data is not wired to /lookup in the design pass; all shortcuts
-    // render as cold-start ("new"). Wiring to /lookup (which merges live stats
-    // into the static spec JSON) is a follow-up substep.
     const params = new URLSearchParams(location.search);
     const appId = params.get("app");
 
@@ -65,11 +62,17 @@
       const base = "/registry/apps/" + encodeURIComponent(id);
       let meta, workflow, shortcuts;
       try {
-        [meta, workflow, shortcuts] = await Promise.all([
-          fetchJson(base + "/meta.json"),
-          fetchJson(base + "/workflow.json"),
-          fetchJson(base + "/shortcuts.json")
-        ]);
+        meta = await fetchJson(base + "/meta.json");
+        workflow = await fetchJson(base + "/workflow.json");
+        // Prefer /lookup so live ShortcutStats (reliability_score, use_count)
+        // merge into each row. Fall back to raw shortcuts.json if /lookup is
+        // unreachable (e.g., previewing under a plain static server).
+        try {
+          const lookup = await fetchJson("/lookup?app_id=" + encodeURIComponent(id) + "&intent=*");
+          shortcuts = { schema_version: 1, app_id: id, shortcuts: lookup.shortcuts || [] };
+        } catch (_) {
+          shortcuts = await fetchJson(base + "/shortcuts.json");
+        }
       } catch (e) {
         document.getElementById("app-display-name").textContent = "App not found";
         document.getElementById("app-meta-line").textContent =
@@ -105,11 +108,15 @@
       appendKv(wf, "Default verification", workflow.verification_default);
       appendKv(wf, "Failure recovery", workflow.failure_recovery.join(" → "));
 
-      // Sort: warm shortcuts first by reliability_score desc, cold-start after
-      // in document order. v0 has no live stats, so all are cold-start.
+      // Sort: warm shortcuts (cold_start === false) first by reliability_score
+      // desc; cold-start after, in /lookup-returned order. /lookup already
+      // sorts; we re-sort defensively in case the raw-file fallback ran.
       const list = (shortcuts.shortcuts || []).slice().sort((a, b) => {
-        const ra = (a.reliability_score == null) ? -1 : a.reliability_score;
-        const rb = (b.reliability_score == null) ? -1 : b.reliability_score;
+        const aWarm = a.cold_start === false;
+        const bWarm = b.cold_start === false;
+        if (aWarm !== bWarm) return aWarm ? -1 : 1;
+        const ra = (a.stats && a.stats.reliability_score) ?? -1;
+        const rb = (b.stats && b.stats.reliability_score) ?? -1;
         return rb - ra;
       });
 
@@ -167,10 +174,11 @@
       const cell = document.createElement("div");
       cell.className = "reliability-cell";
 
-      // Warm path: present when /lookup-merged data lands here. Kept inert in v0
-      // since static fetches return no stats.
-      if (s.reliability_score != null) {
-        const pct = Math.round(s.reliability_score * 100);
+      const stats = s.stats || {};
+      const warmEnough = s.cold_start === false && stats.reliability_score != null;
+
+      if (warmEnough) {
+        const pct = Math.round(stats.reliability_score * 100);
         const warm = document.createElement("div");
         warm.className = "reliability-warm";
         const pctSpan = document.createElement("span");
@@ -185,10 +193,10 @@
         bar.appendChild(fill);
         warm.appendChild(bar);
         cell.appendChild(warm);
-        if (s.use_count != null) {
+        if (stats.use_count != null) {
           const n = document.createElement("span");
           n.className = "reliability-n";
-          n.textContent = "n=" + s.use_count;
+          n.textContent = "n=" + stats.use_count;
           cell.appendChild(n);
         }
       } else {
@@ -196,6 +204,12 @@
         badge.className = "badge-new";
         badge.textContent = "New";
         cell.appendChild(badge);
+        if (stats.use_count != null && stats.use_count > 0) {
+          const n = document.createElement("span");
+          n.className = "reliability-n";
+          n.textContent = "n=" + stats.use_count;
+          cell.appendChild(n);
+        }
       }
       return cell;
     }
