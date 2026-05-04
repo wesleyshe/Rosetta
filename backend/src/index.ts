@@ -5,6 +5,7 @@
 //   - GET  /apps/{app_id}/skill.md         (generated agent-context view)
 //   - GET  /auth/github/login             (OAuth start)
 //   - GET  /auth/github/callback          (OAuth finish)
+//   - GET  /auth/github/token             (post-login: display the token + setup instructions)
 //   - POST /submit                        (auth + reviewer + auto-merge)
 //   - POST /report-execution              (telemetry; recomputes ShortcutStats inline)
 //   - GET  /lookup                        (joins specs on disk with live stats; ranked)

@@ -130,22 +130,17 @@ The explore skill does two things:
 
 Step 1 needs no auth. Step 2 needs a Contributor row in the backend's Postgres, created by a GitHub OAuth login.
 
-### v0 submission auth caveat
+### Set up GitHub auth for submissions
 
-The submission flow has a rough edge in v0:
+Three steps:
 
-- The backend at `/auth/github/login` runs an OAuth App flow, gets a GitHub token, hashes it (sha256), and stores the hash in the `Contributor` table.
-- The backend's `/submit` endpoint matches incoming bearer tokens against `Contributor.oauth_token_hash`.
-- The MCP reads its bearer token from `ROSETTA_GITHUB_TOKEN` env var (or an explicit `contributor_token` param).
-- There is no clean v0 path for the OAuth-flow token to reach the MCP's env. The httpOnly cookie blocks browser-side reading; we haven't built a user-facing "copy your token" page yet.
+1. Visit `https://rosetta-production-e301.up.railway.app/auth/github/login` in your browser.
+2. Complete the GitHub OAuth flow (authorize the Rosetta OAuth App with `public_repo` scope).
+3. After the redirect back, visit `https://rosetta-production-e301.up.railway.app/auth/github/token`. The page shows your token and the exact `claude_desktop_config.json` snippet to paste.
 
-Two practical workarounds for v0 exploration:
+Add `ROSETTA_GITHUB_TOKEN` to your MCP config's rosetta env block. Restart your AI client. Submissions now land for real instead of dry-run.
 
-**Option A: dry-run submissions.** Run the explorer with `ROSETTA_BACKEND_URL` temporarily unset (comment it out of the MCP env). The MCP submits in dry-run mode, returning fake PR URLs. Findings still save to the local session file at `~/Library/Application Support/rosetta-mcp/sessions/{app_id}.json`. You can review the findings later and PR them by hand if any are worth landing.
-
-**Option B: real submission via manual cookie extraction.** Visit `https://rosetta-production-e301.up.railway.app/auth/github/login` in a browser. Complete the OAuth flow. Open browser dev tools, find the `rosetta_token` cookie, copy its value. Set it as `ROSETTA_GITHUB_TOKEN` in your Claude Desktop config's rosetta env block. Restart Claude Desktop. Submissions now land for real.
-
-Option B is awkward and not the long-term answer. Tracked as a launch follow-up.
+If you'd rather try the explorer without auth first, **dry-run** mode works fine: comment out `ROSETTA_BACKEND_URL` in your MCP config. The explorer drafts and verifies findings, saves them locally to `~/Library/Application Support/rosetta-mcp/sessions/{app_id}.json`, and the submit step returns fake PR URLs. You can review the findings file afterward and decide which to land via real-mode submissions or by hand.
 
 ### Run the explore skill
 

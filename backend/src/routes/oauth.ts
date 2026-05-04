@@ -11,12 +11,17 @@
 //   Contributor row keyed by github_username, then redirects back to /
 //   with ?login=ok&user={username} (no UX polish — that's parking-lot 2).
 //
+// GET /auth/github/token
+//   Reads the rosetta_token cookie set by the callback, validates that
+//   sha256(token) matches an existing Contributor row, and renders an
+//   HTML page that displays the token plus setup instructions for
+//   ROSETTA_GITHUB_TOKEN in the user's MCP config. Closes task #10:
+//   without this, the OAuth-flow token sits in an httpOnly cookie that
+//   the MCP can't read, so explorer-skill submissions fail 401.
+//
 // The raw token is returned to the user via a `rosetta_token` cookie
-// (httpOnly, secure, SameSite=Lax) so the static site's submit-from-MCP
-// flow can grab it via `document.cookie` if/when that's wired in. v0
-// users mostly submit via the MCP and pass the token explicitly; the
-// cookie is a convenience. Hashed-token-only is the Postgres-side rule;
-// the cookie is client-side and ephemeral.
+// (httpOnly, secure, SameSite=Lax). Hashed-token-only is the
+// Postgres-side rule; the cookie is client-side and ephemeral.
 
 import { randomBytes } from "node:crypto";
 
@@ -130,6 +135,25 @@ export async function oauthRoutes(app: FastifyInstance): Promise<void> {
       return reply.redirect(`/?login=ok&user=${encodeURIComponent(user.login)}`);
     }
   );
+
+  app.get("/auth/github/token", async (req, reply) => {
+    const token = readTokenCookie(req.headers.cookie);
+    if (!token) {
+      reply.type("text/html");
+      return reply.send(renderLoginRequiredPage());
+    }
+    const tokenHash = hashToken(token);
+    const prisma = getPrisma();
+    const contributor = await prisma.contributor.findFirst({
+      where: { oauth_token_hash: tokenHash },
+    });
+    if (!contributor) {
+      reply.type("text/html");
+      return reply.send(renderInvalidTokenPage());
+    }
+    reply.type("text/html");
+    return reply.send(renderTokenPage(token, contributor.github_username));
+  });
 }
 
 // ---------- cookie plumbing ----------
@@ -172,4 +196,145 @@ function readStateCookie(cookieHeader: string | undefined): string | null {
     if (k === STATE_COOKIE && v) return v;
   }
   return null;
+}
+
+function readTokenCookie(cookieHeader: string | undefined): string | null {
+  if (!cookieHeader) return null;
+  for (const piece of cookieHeader.split(";")) {
+    const [k, ...rest] = piece.trim().split("=");
+    if (k === TOKEN_COOKIE && rest.length > 0) {
+      const value = rest.join("=");
+      return value || null;
+    }
+  }
+  return null;
+}
+
+// ---------- /auth/github/token HTML pages ----------
+
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => {
+    switch (c) {
+      case "&": return "&amp;";
+      case "<": return "&lt;";
+      case ">": return "&gt;";
+      case '"': return "&quot;";
+      case "'": return "&#39;";
+      default: return c;
+    }
+  });
+}
+
+function pageShell(title: string, bodyHtml: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>${escapeHtml(title)} — Rosetta</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="hero">
+    <a href="/" class="wordmark">Rosetta</a>
+    <h1 class="thesis" style="font-size: 2rem;">${escapeHtml(title)}</h1>
+  </header>
+  <main id="main">
+${bodyHtml}
+  </main>
+  <footer>
+    <p>Source: <a href="https://github.com/wesleyshe/Rosetta">github.com/wesleyshe/Rosetta</a> &middot; MIT</p>
+  </footer>
+</body>
+</html>`;
+}
+
+function renderTokenPage(rawToken: string, username: string): string {
+  const safeToken = escapeHtml(rawToken);
+  const safeUser = escapeHtml(username);
+  const body = `
+    <section>
+      <h2>Logged in as ${safeUser}</h2>
+      <p>This is your GitHub OAuth token. The Rosetta MCP needs this in its
+      env block to submit shortcuts on your behalf. Copy it and add it to
+      your AI client's MCP config.</p>
+    </section>
+
+    <section>
+      <h2>Your token</h2>
+      <div class="copy-row">
+        <button class="copy-btn" data-target="rosetta-token" aria-label="Copy token to clipboard" type="button">Copy</button>
+      </div>
+      <pre><code id="rosetta-token">${safeToken}</code></pre>
+      <p class="status-note">Treat this like a password. Anyone with this token can submit shortcuts as you.</p>
+    </section>
+
+    <section>
+      <h2>Set up your MCP config</h2>
+      <p>Edit <code>~/Library/Application Support/Claude/claude_desktop_config.json</code>
+      (or your client's equivalent) and add <code>ROSETTA_GITHUB_TOKEN</code>
+      to the rosetta env block:</p>
+      <pre><code>"rosetta": {
+  "command": "node",
+  "args": ["/path/to/Rosetta/mcp/dist/index.js"],
+  "env": {
+    "ROSETTA_REGISTRY_PATH": "/path/to/Rosetta/registry",
+    "ROSETTA_BACKEND_URL": "https://rosetta-production-e301.up.railway.app",
+    "ROSETTA_GITHUB_TOKEN": "${safeToken}"
+  }
+}</code></pre>
+      <p>Restart your AI client. The explorer skill's submission step will now
+      land real PRs instead of dry-runs.</p>
+    </section>
+
+    <section>
+      <h2>Done?</h2>
+      <p>You can close this tab. The token stays valid until you revoke the
+      Rosetta OAuth grant on
+      <a href="https://github.com/settings/applications">github.com/settings/applications</a>.</p>
+    </section>
+  </main>
+  <script>
+    document.querySelectorAll(".copy-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const target = document.getElementById(btn.dataset.target);
+        try {
+          await navigator.clipboard.writeText(target.textContent);
+          const original = btn.textContent;
+          btn.textContent = "Copied";
+          setTimeout(() => { btn.textContent = original; }, 1500);
+        } catch {
+          btn.textContent = "Copy failed";
+        }
+      });
+    });
+  </script>
+  <footer style="display:none">`;
+  return pageShell("Your GitHub Token", body);
+}
+
+function renderLoginRequiredPage(): string {
+  const body = `
+    <section>
+      <h2>You need to log in first</h2>
+      <p>This page shows you the GitHub OAuth token Rosetta uses to submit
+      shortcuts on your behalf. To see it, log in via GitHub:</p>
+      <p><a class="copy-btn" href="/auth/github/login" style="display: inline-block; text-decoration: none;">Log in with GitHub</a></p>
+      <p>After GitHub redirects you back, return to
+      <code>/auth/github/token</code> in this browser.</p>
+    </section>`;
+  return pageShell("Log In Required", body);
+}
+
+function renderInvalidTokenPage(): string {
+  const body = `
+    <section>
+      <h2>Token mismatch</h2>
+      <p>Your browser has a <code>rosetta_token</code> cookie, but it doesn't
+      match any contributor record. This usually means the token was rotated
+      after you last logged in, or the cookie is stale.</p>
+      <p><a class="copy-btn" href="/auth/github/login" style="display: inline-block; text-decoration: none;">Log in with GitHub again</a></p>
+    </section>`;
+  return pageShell("Token Mismatch", body);
 }
