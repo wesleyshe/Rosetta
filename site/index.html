@@ -19,12 +19,14 @@
   <main id="main">
     <section id="install">
       <h2>Install</h2>
-      <p>Run the MCP locally. One command.</p>
+      <p>v0 install is from source. Three commands.</p>
       <div class="copy-row">
-        <button class="copy-btn" data-target="install-cmd" aria-label="Copy install command to clipboard">Copy</button>
+        <button class="copy-btn" data-target="install-cmd" aria-label="Copy install commands to clipboard">Copy</button>
       </div>
-      <pre><code id="install-cmd">npx @rosetta-skills/mcp</code></pre>
-      <p class="status-note">Pre-launch. Final npm name pending — track status at <a href="https://github.com/wesleyshe/Rosetta">github.com/wesleyshe/Rosetta</a>.</p>
+      <pre><code id="install-cmd">git clone https://github.com/wesleyshe/Rosetta.git
+cd Rosetta/mcp
+npm install &amp;&amp; npm run build</code></pre>
+      <p class="status-note">Then wire <code>dist/index.js</code> into your MCP client. Full guide: <a href="https://github.com/wesleyshe/Rosetta/blob/main/docs/install.md">docs/install.md</a>. macOS only in v0. npm one-liner lands post-launch.</p>
     </section>
 
     <section id="use-skill">
