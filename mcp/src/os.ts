@@ -247,6 +247,13 @@ export async function screenshot(opts: ScreenshotOptions = {}): Promise<Screensh
   const format = opts.format ?? "jpg";
   const ext = format === "png" ? "png" : "jpg";
   const path = join(tmpdir(), `rosetta-screen-${randomUUID()}.${ext}`);
+  // Cap at 1600px longest dimension and JPEG quality 60. Keeps the
+  // base64-encoded multimodal image content under Claude Desktop's 1MB
+  // tool-result limit even on a retina full-screen capture. Region
+  // captures already smaller than the bound pass through size-unchanged
+  // but are still recompressed at the lower quality.
+  const MAX_DIMENSION = 1600;
+  const JPEG_QUALITY = 60;
   const args = ["-x", "-t", ext];
   if (opts.region) {
     args.push("-R", `${opts.region.x},${opts.region.y},${opts.region.width},${opts.region.height}`);
@@ -256,6 +263,26 @@ export async function screenshot(opts: ScreenshotOptions = {}): Promise<Screensh
     await execFileAsync("screencapture", args, { timeout: 8000 });
   } catch (e) {
     throw new Error(`screencapture failed: ${(e as Error).message}`);
+  }
+  // Post-process JPEGs through sips: resize so the longest dimension is
+  // <= MAX_DIMENSION, recompress at JPEG_QUALITY. Best-effort; if sips
+  // fails for any reason, fall through to the original screencapture
+  // output. PNG path is untouched (callers asking for PNG want
+  // pixel-stable bytes for screenshot_diff).
+  if (format === "jpg") {
+    try {
+      await execFileAsync(
+        "sips",
+        [
+          "-Z", String(MAX_DIMENSION),
+          "--setProperty", "formatOptions", String(JPEG_QUALITY),
+          path,
+        ],
+        { timeout: 5000 }
+      );
+    } catch {
+      // best-effort
+    }
   }
   const buf = readFileSync(path);
   return { path, base64: buf.toString("base64"), bytes: buf.length, region: opts.region, format };
