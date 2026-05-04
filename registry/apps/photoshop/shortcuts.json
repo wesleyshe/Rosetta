@@ -125,6 +125,29 @@
       }
     },
     {
+      "id": "redo",
+      "intent": "Redo the most recently undone edit on the active document",
+      "parameters": [],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "shortcut",
+      "actions": [
+        { "type": "key_combo", "keys": { "macos": "cmd+shift+z" } }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Looking at the screen, has the most recently undone edit been re-applied to the canvas?",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "seed",
+        "payment_destination": null,
+        "token_cost_estimate": 5,
+        "speed_estimate_ms": 100,
+        "submitted_at": "2026-05-04"
+      }
+    },
+    {
       "id": "adjust-brightness",
       "intent": "Apply a brightness shift to the active layer (positive brightens, negative darkens)",
       "parameters": [
@@ -154,6 +177,29 @@
         "token_cost_estimate": 50,
         "speed_estimate_ms": 1500,
         "submitted_at": "2026-05-03"
+      }
+    },
+    {
+      "id": "invert-image",
+      "intent": "Invert the colors of the active layer (Image > Adjustments > Invert)",
+      "parameters": [],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "shortcut",
+      "actions": [
+        { "type": "key_combo", "keys": { "macos": "cmd+i" } }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Looking at the screen, has the active layer's colors been inverted (each pixel replaced with its photographic negative)?",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "seed",
+        "payment_destination": null,
+        "token_cost_estimate": 5,
+        "speed_estimate_ms": 200,
+        "submitted_at": "2026-05-04"
       }
     },
     {
@@ -210,6 +256,657 @@
         "token_cost_estimate": 30,
         "speed_estimate_ms": 800,
         "submitted_at": "2026-05-03"
+      }
+    },
+
+    {
+      "id": "select-move-tool",
+      "intent": "Select the Move tool (V) in the Tools panel",
+      "parameters": [],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "shortcut",
+      "actions": [
+        { "type": "key", "key": "v" }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Is the Move tool currently active in Photoshop's Tools panel (highlighted icon, options bar showing Move-tool controls)?",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "seed",
+        "payment_destination": null,
+        "token_cost_estimate": 5,
+        "speed_estimate_ms": 100,
+        "submitted_at": "2026-05-04"
+      }
+    },
+    {
+      "id": "select-marquee-tool",
+      "intent": "Select the Rectangular Marquee selection tool (M) in the Tools panel",
+      "parameters": [],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "shortcut",
+      "actions": [
+        { "type": "key", "key": "m" }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Is the Rectangular Marquee tool currently active in Photoshop's Tools panel?",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "seed",
+        "payment_destination": null,
+        "token_cost_estimate": 5,
+        "speed_estimate_ms": 100,
+        "submitted_at": "2026-05-04"
+      }
+    },
+    {
+      "id": "select-lasso-tool",
+      "intent": "Select the Lasso selection tool (L) in the Tools panel",
+      "parameters": [],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "shortcut",
+      "actions": [
+        { "type": "key", "key": "l" }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Is the Lasso tool currently active in Photoshop's Tools panel?",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "seed",
+        "payment_destination": null,
+        "token_cost_estimate": 5,
+        "speed_estimate_ms": 100,
+        "submitted_at": "2026-05-04"
+      }
+    },
+    {
+      "id": "select-quick-selection-tool",
+      "intent": "Select the Quick Selection / Object Selection tool (W) in the Tools panel",
+      "parameters": [],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "shortcut",
+      "actions": [
+        { "type": "key", "key": "w" }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Is the Quick Selection (or Object Selection) tool currently active in Photoshop's Tools panel?",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "seed",
+        "payment_destination": null,
+        "token_cost_estimate": 5,
+        "speed_estimate_ms": 100,
+        "submitted_at": "2026-05-04"
+      }
+    },
+    {
+      "id": "select-crop-tool",
+      "intent": "Select the Crop tool (C) in the Tools panel",
+      "parameters": [],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "shortcut",
+      "actions": [
+        { "type": "key", "key": "c" }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Is the Crop tool currently active in Photoshop's Tools panel (canvas may show crop handles overlaid)?",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "seed",
+        "payment_destination": null,
+        "token_cost_estimate": 5,
+        "speed_estimate_ms": 100,
+        "submitted_at": "2026-05-04"
+      }
+    },
+    {
+      "id": "select-eyedropper-tool",
+      "intent": "Select the Eyedropper tool (I) in the Tools panel",
+      "parameters": [],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "shortcut",
+      "actions": [
+        { "type": "key", "key": "i" }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Is the Eyedropper tool currently active in Photoshop's Tools panel?",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "seed",
+        "payment_destination": null,
+        "token_cost_estimate": 5,
+        "speed_estimate_ms": 100,
+        "submitted_at": "2026-05-04"
+      }
+    },
+    {
+      "id": "select-brush-tool",
+      "intent": "Select the Brush tool (B) in the Tools panel",
+      "parameters": [],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "shortcut",
+      "actions": [
+        { "type": "key", "key": "b" }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Is the Brush tool currently active in Photoshop's Tools panel (options bar showing brush size, hardness, opacity controls)?",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "seed",
+        "payment_destination": null,
+        "token_cost_estimate": 5,
+        "speed_estimate_ms": 100,
+        "submitted_at": "2026-05-04"
+      }
+    },
+    {
+      "id": "select-clone-stamp-tool",
+      "intent": "Select the Clone Stamp tool (S) in the Tools panel",
+      "parameters": [],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "shortcut",
+      "actions": [
+        { "type": "key", "key": "s" }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Is the Clone Stamp tool currently active in Photoshop's Tools panel?",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "seed",
+        "payment_destination": null,
+        "token_cost_estimate": 5,
+        "speed_estimate_ms": 100,
+        "submitted_at": "2026-05-04"
+      }
+    },
+    {
+      "id": "select-eraser-tool",
+      "intent": "Select the Eraser tool (E) in the Tools panel",
+      "parameters": [],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "shortcut",
+      "actions": [
+        { "type": "key", "key": "e" }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Is the Eraser tool currently active in Photoshop's Tools panel?",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "seed",
+        "payment_destination": null,
+        "token_cost_estimate": 5,
+        "speed_estimate_ms": 100,
+        "submitted_at": "2026-05-04"
+      }
+    },
+    {
+      "id": "select-gradient-tool",
+      "intent": "Select the Gradient / Paint Bucket tool (G) in the Tools panel",
+      "parameters": [],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "shortcut",
+      "actions": [
+        { "type": "key", "key": "g" }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Is the Gradient (or Paint Bucket) tool currently active in Photoshop's Tools panel?",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "seed",
+        "payment_destination": null,
+        "token_cost_estimate": 5,
+        "speed_estimate_ms": 100,
+        "submitted_at": "2026-05-04"
+      }
+    },
+    {
+      "id": "select-pen-tool",
+      "intent": "Select the Pen tool (P) in the Tools panel",
+      "parameters": [],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "shortcut",
+      "actions": [
+        { "type": "key", "key": "p" }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Is the Pen tool currently active in Photoshop's Tools panel?",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "seed",
+        "payment_destination": null,
+        "token_cost_estimate": 5,
+        "speed_estimate_ms": 100,
+        "submitted_at": "2026-05-04"
+      }
+    },
+    {
+      "id": "select-type-tool",
+      "intent": "Select the Type (text) tool (T) in the Tools panel",
+      "parameters": [],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "shortcut",
+      "actions": [
+        { "type": "key", "key": "t" }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Is the Type (text) tool currently active in Photoshop's Tools panel (options bar showing font controls)?",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "seed",
+        "payment_destination": null,
+        "token_cost_estimate": 5,
+        "speed_estimate_ms": 100,
+        "submitted_at": "2026-05-04"
+      }
+    },
+    {
+      "id": "select-hand-tool",
+      "intent": "Select the Hand (pan canvas) tool (H) in the Tools panel",
+      "parameters": [],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "shortcut",
+      "actions": [
+        { "type": "key", "key": "h" }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Is the Hand tool currently active in Photoshop's Tools panel (cursor will change to a hand when over the canvas)?",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "seed",
+        "payment_destination": null,
+        "token_cost_estimate": 5,
+        "speed_estimate_ms": 100,
+        "submitted_at": "2026-05-04"
+      }
+    },
+    {
+      "id": "select-zoom-tool",
+      "intent": "Select the Zoom tool (Z) in the Tools panel",
+      "parameters": [],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "shortcut",
+      "actions": [
+        { "type": "key", "key": "z" }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Is the Zoom tool currently active in Photoshop's Tools panel?",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "seed",
+        "payment_destination": null,
+        "token_cost_estimate": 5,
+        "speed_estimate_ms": 100,
+        "submitted_at": "2026-05-04"
+      }
+    },
+
+    {
+      "id": "zoom-fit-screen",
+      "intent": "Fit the active document to the screen (View > Fit on Screen)",
+      "parameters": [],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "shortcut",
+      "actions": [
+        { "type": "key_combo", "keys": { "macos": "cmd+0" } }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Has the active document been resized in the canvas viewport to fit the visible area (no scrollbars, the entire image visible)?",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "seed",
+        "payment_destination": null,
+        "token_cost_estimate": 5,
+        "speed_estimate_ms": 200,
+        "submitted_at": "2026-05-04"
+      }
+    },
+    {
+      "id": "zoom-100-percent",
+      "intent": "Show the active document at 100% zoom (one screen pixel per image pixel)",
+      "parameters": [],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "shortcut",
+      "actions": [
+        { "type": "key_combo", "keys": { "macos": "cmd+1" } }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Is the active document now displayed at 100% zoom (the document tab or status bar should reflect 100%)?",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "seed",
+        "payment_destination": null,
+        "token_cost_estimate": 5,
+        "speed_estimate_ms": 200,
+        "submitted_at": "2026-05-04"
+      }
+    },
+    {
+      "id": "zoom-in",
+      "intent": "Zoom in one step on the active document",
+      "parameters": [],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "shortcut",
+      "actions": [
+        { "type": "key_combo", "keys": { "macos": "cmd+=" } }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Has the active document zoomed in (the zoom percentage in the document tab or status bar increased)?",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "seed",
+        "payment_destination": null,
+        "token_cost_estimate": 5,
+        "speed_estimate_ms": 200,
+        "submitted_at": "2026-05-04"
+      }
+    },
+    {
+      "id": "zoom-out",
+      "intent": "Zoom out one step on the active document",
+      "parameters": [],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "shortcut",
+      "actions": [
+        { "type": "key_combo", "keys": { "macos": "cmd+-" } }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Has the active document zoomed out (the zoom percentage in the document tab or status bar decreased)?",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "seed",
+        "payment_destination": null,
+        "token_cost_estimate": 5,
+        "speed_estimate_ms": 200,
+        "submitted_at": "2026-05-04"
+      }
+    },
+
+    {
+      "id": "select-all",
+      "intent": "Select the entire canvas of the active document (marching ants around the full image)",
+      "parameters": [],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "shortcut",
+      "actions": [
+        { "type": "key_combo", "keys": { "macos": "cmd+a" } }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Is there now a selection covering the entire active document (animated 'marching ants' visible at the canvas edges)?",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "seed",
+        "payment_destination": null,
+        "token_cost_estimate": 5,
+        "speed_estimate_ms": 100,
+        "submitted_at": "2026-05-04"
+      }
+    },
+    {
+      "id": "deselect",
+      "intent": "Clear any active selection on the canvas (Select > Deselect)",
+      "parameters": [],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "shortcut",
+      "actions": [
+        { "type": "key_combo", "keys": { "macos": "cmd+d" } }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Has any prior selection been cleared from the canvas (no marching ants visible anywhere on the active document)?",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "seed",
+        "payment_destination": null,
+        "token_cost_estimate": 5,
+        "speed_estimate_ms": 100,
+        "submitted_at": "2026-05-04"
+      }
+    },
+    {
+      "id": "inverse-selection",
+      "intent": "Inverse the active selection (select what was not selected)",
+      "parameters": [],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "shortcut",
+      "actions": [
+        { "type": "key_combo", "keys": { "macos": "cmd+shift+i" } }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Has the previously-selected region been inverted (what was inside the selection is now outside, and vice versa, with marching ants reflecting the new boundary)?",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "seed",
+        "payment_destination": null,
+        "token_cost_estimate": 5,
+        "speed_estimate_ms": 100,
+        "submitted_at": "2026-05-04"
+      }
+    },
+
+    {
+      "id": "new-layer",
+      "intent": "Create a new empty layer above the active layer",
+      "parameters": [],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "shortcut",
+      "actions": [
+        { "type": "key_combo", "keys": { "macos": "cmd+shift+n" } },
+        { "type": "key", "key": "enter" }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Has a new empty layer appeared in the Layers panel above the previously-active layer?",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "seed",
+        "payment_destination": null,
+        "token_cost_estimate": 10,
+        "speed_estimate_ms": 500,
+        "submitted_at": "2026-05-04"
+      }
+    },
+    {
+      "id": "duplicate-layer",
+      "intent": "Duplicate the active layer (creates a copy in the Layers panel)",
+      "parameters": [],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "shortcut",
+      "actions": [
+        { "type": "key_combo", "keys": { "macos": "cmd+j" } }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Has a duplicate of the previously-active layer appeared in the Layers panel (typically named with a 'copy' suffix or as the next available 'Layer N')?",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "seed",
+        "payment_destination": null,
+        "token_cost_estimate": 5,
+        "speed_estimate_ms": 200,
+        "submitted_at": "2026-05-04"
+      }
+    },
+    {
+      "id": "merge-down",
+      "intent": "Merge the active layer down into the layer beneath it",
+      "parameters": [],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "shortcut",
+      "actions": [
+        { "type": "key_combo", "keys": { "macos": "cmd+e" } }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Has the active layer been merged into the layer beneath it (the Layers panel now shows one fewer layer)?",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "seed",
+        "payment_destination": null,
+        "token_cost_estimate": 5,
+        "speed_estimate_ms": 300,
+        "submitted_at": "2026-05-04"
+      }
+    },
+    {
+      "id": "merge-visible",
+      "intent": "Merge all visible layers into a single layer",
+      "parameters": [],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "shortcut",
+      "actions": [
+        { "type": "key_combo", "keys": { "macos": "cmd+shift+e" } }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Have all previously-visible layers been combined into a single layer in the Layers panel (visible-layer count reduced to one)?",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "seed",
+        "payment_destination": null,
+        "token_cost_estimate": 5,
+        "speed_estimate_ms": 500,
+        "submitted_at": "2026-05-04"
+      }
+    },
+    {
+      "id": "group-layers",
+      "intent": "Group the selected layers (or the active layer) into a new layer group",
+      "parameters": [],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "shortcut",
+      "actions": [
+        { "type": "key_combo", "keys": { "macos": "cmd+g" } }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Has a new group (folder icon) appeared in the Layers panel containing the previously-active layer(s)?",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "seed",
+        "payment_destination": null,
+        "token_cost_estimate": 5,
+        "speed_estimate_ms": 300,
+        "submitted_at": "2026-05-04"
+      }
+    },
+    {
+      "id": "flatten-image",
+      "intent": "Flatten all layers in the active document into a single background layer",
+      "parameters": [],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "menu",
+      "actions": [
+        { "type": "menu", "path": ["Layer", "Flatten Image"] }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Has the Layers panel collapsed to a single 'Background' layer (all previous layers merged and flattened)?",
+        "expected": "yes"
+      },
+      "metadata": {
+        "contributor_id": "seed",
+        "payment_destination": null,
+        "token_cost_estimate": 20,
+        "speed_estimate_ms": 800,
+        "submitted_at": "2026-05-04"
+      }
+    },
+
+    {
+      "id": "close-document",
+      "intent": "Close the active document. If there are unsaved changes, Photoshop will prompt; this shortcut does not handle the prompt.",
+      "parameters": [],
+      "platforms": ["macos"],
+      "app_versions": ["25+"],
+      "method": "shortcut",
+      "actions": [
+        { "type": "key_combo", "keys": { "macos": "cmd+w" } }
+      ],
+      "verification": {
+        "type": "interpret_check",
+        "question": "Has the active document closed (the previously-visible document is no longer in the canvas, or Photoshop is showing the Home screen / a different document)? If a 'save changes' prompt is showing, the close has not yet completed and verification should be no.",
+        "expected": "yes"
+      },
+      "risk": "destructive",
+      "metadata": {
+        "contributor_id": "seed",
+        "payment_destination": null,
+        "token_cost_estimate": 10,
+        "speed_estimate_ms": 300,
+        "submitted_at": "2026-05-04"
       }
     }
   ]
