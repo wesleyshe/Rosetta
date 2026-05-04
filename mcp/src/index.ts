@@ -1,14 +1,14 @@
 #!/usr/bin/env node
-// rosetta-mcp entry point (Phase 6a).
+// rosetta-mcp entry point.
 //
 // Fourteen tools, all wired in:
-//   Registry (Phase 3 + 5 + 6a):  registry_list_apps, registry_lookup,
-//                                 registry_report_execution, registry_submit,
-//                                 os_app_info
-//   Computer control (Phase 4 Part 1): os_screenshot, os_action, os_read_ax_tree
-//   Verification (Phase 4 Part 1):     verify, interpret
-//   Explore session (Phase 4 Part 2):  explore_start_session, explore_save_finding,
-//                                      explore_budget_status, explore_submit_findings
+//   Registry:          registry_list_apps, registry_lookup,
+//                      registry_report_execution, registry_submit
+//   App detection:     os_app_info
+//   Computer control:  os_screenshot, os_action, os_read_ax_tree
+//   Verification:      verify, interpret
+//   Explore session:   explore_start_session, explore_save_finding,
+//                      explore_budget_status, explore_submit_findings
 //
 // Naming: docs and seed skills refer to these as registry.list_apps, os.action,
 // explore.start_session, etc. (with dots). MCP clients vary in tolerance for dots
@@ -67,7 +67,7 @@ const tools = [
   {
     name: "registry_lookup",
     description:
-      "Look up shortcuts in the Rosetta registry that match an intent for a given app. Returns a ranked array of shortcuts. In Phase 4 (no backend wired) results carry `cold_start: true` and null stats; ranking falls back to token-overlap on intent and `token_cost_estimate` ascending. (Conceptually `registry.lookup`.)",
+      "Look up shortcuts in the Rosetta registry that match an intent for a given app. Returns a ranked array of shortcuts. When ROSETTA_BACKEND_URL is set, ranking uses live ShortcutStats (reliability_score, use_count) merged into each row; in local-fallback mode every shortcut is `cold_start: true` with null stats and ranking falls back to token-overlap on intent then `token_cost_estimate` ascending. (Conceptually `registry.lookup`.)",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -119,7 +119,7 @@ const tools = [
   {
     name: "registry_report_execution",
     description:
-      "Report a single shortcut-execution outcome (success or failure) for telemetry. Phase 5 stub: when ROSETTA_BACKEND_URL is set, POSTs to <url>/report-execution; otherwise runs in DRY-RUN mode (logs the event payload to stderr, returns {ok:true, dry_run:true}). The use seed skill calls this immediately after every verify(...) call, regardless of outcome — it is the feedback loop that drives reliability_score in the live registry. (Conceptually `registry.report_execution`.)",
+      "Report a single shortcut-execution outcome (success or failure) for telemetry. When ROSETTA_BACKEND_URL is set, POSTs to <url>/report-execution; otherwise runs in DRY-RUN mode (logs the event payload to stderr, returns {ok:true, dry_run:true}). The use seed skill calls this immediately after every verify(...) call, regardless of outcome — it is the feedback loop that drives reliability_score in the live registry. (Conceptually `registry.report_execution`.)",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -162,7 +162,7 @@ const tools = [
   {
     name: "os_screenshot",
     description:
-      "Capture a screenshot of the full screen or an optional rectangular region. Returns a text block with `{path, bytes, region?, format}` AND a separate MCP image content block carrying the actual image bytes via the multimodal channel — the agent sees the image directly with its native vision (no base64 in JSON). Supports `format: \"jpg\"` (default, smaller) or `format: \"png\"` (use for pixel-stable comparisons such as screenshot_diff verification). macOS only in Phase 4 (uses `screencapture`); Windows/Linux throw. (Conceptually `os.screenshot`.)",
+      "Capture a screenshot of the full screen or an optional rectangular region. Returns a text block with `{path, bytes, region?, format}` AND a separate MCP image content block carrying the actual image bytes via the multimodal channel — the agent sees the image directly with its native vision (no base64 in JSON). Supports `format: \"jpg\"` (default, smaller) or `format: \"png\"` (use for pixel-stable comparisons such as screenshot_diff verification). macOS only in v0 (uses `screencapture`); Windows/Linux throw. (Conceptually `os.screenshot`.)",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -226,7 +226,7 @@ const tools = [
   {
     name: "os_read_ax_tree",
     description:
-      "Query the OS accessibility tree for a single named rule (e.g. `active_editor_filename`). Returns either {ok:true, value, ...} or {ok:false, error}. Phase 4 implements `active_editor_filename` on macOS only; other rules return `ax_rule_not_implemented_in_v0` and the agent should fall back to `interpret`. (Conceptually `os.read_ax_tree`.)",
+      "Query the OS accessibility tree for a single named rule (e.g. `active_editor_filename`). Returns either {ok:true, value, ...} or {ok:false, error}. v0 implements `active_editor_filename` on macOS only; other rules return `ax_rule_not_implemented_in_v0` and the agent should fall back to `interpret`. (Conceptually `os.read_ax_tree`.)",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -302,13 +302,13 @@ const tools = [
   {
     name: "interpret",
     description:
-      "Pass an image (and a question) to a vision model and return the model's natural-language answer. Niche escape hatch — the use seed skill no longer routes through this tool (verify(interpret_check) attaches the screenshot directly for the agent's own vision in v0). Pass either `image_base64` (inline bytes) or `image_path` (server-side file read); media type auto-detected from magic bytes (PNG vs JPEG). Phase 4 implements Anthropic only (default model `claude-haiku-4-5`); openai and gemini throw `provider_not_implemented`. Provider/model overridable via env (ROSETTA_INTERPRET_PROVIDER, ROSETTA_INTERPRET_MODEL).",
+      "Pass an image (and a question) to a vision model and return the model's natural-language answer. Niche escape hatch — the use seed skill no longer routes through this tool (verify(interpret_check) attaches the screenshot directly for the agent's own vision in v0). Pass either `image_base64` (inline bytes) or `image_path` (server-side file read); media type auto-detected from magic bytes (PNG vs JPEG). v0 implements Anthropic only (default model `claude-haiku-4-5`); openai and gemini throw `provider_not_implemented`. Provider/model overridable via env (ROSETTA_INTERPRET_PROVIDER, ROSETTA_INTERPRET_MODEL).",
     inputSchema: {
       type: "object" as const,
       properties: {
         image_base64: { type: "string", description: "Base64-encoded image bytes (PNG or JPEG). Mutually exclusive with image_path." },
         image_path: { type: "string", description: "Filesystem path to an image. Read server-side. Mutually exclusive with image_base64." },
-        audio_base64: { type: "string", description: "Reserved for Phase 7+. Currently rejected." },
+        audio_base64: { type: "string", description: "Reserved for future audio-question support. Currently rejected." },
         question: { type: "string", description: "Natural-language question to ask about the media." },
         model: { type: "string", description: "Optional override for the provider's default model." },
       },
@@ -385,7 +385,7 @@ const tools = [
   {
     name: "explore_submit_findings",
     description:
-      "Submit all verified, unsubmitted findings for an app. Calls the backend `/submit` endpoint when `ROSETTA_BACKEND_URL` is set; otherwise runs in DRY-RUN mode and returns fake URLs of the form `.../pull/dryrun-{cuid}` (Phase 6a wires real submission). Returns `{app_id, attempted_count, submitted_count, results, dry_run}`. (Conceptually `explore.submit_findings`.)",
+      "Submit all verified, unsubmitted findings for an app. Calls the backend `/submit` endpoint when `ROSETTA_BACKEND_URL` is set; otherwise runs in DRY-RUN mode and returns fake URLs of the form `.../pull/dryrun-{cuid}`. Returns `{app_id, attempted_count, submitted_count, results, dry_run}`. (Conceptually `explore.submit_findings`.)",
     inputSchema: {
       type: "object" as const,
       properties: {
