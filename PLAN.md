@@ -210,17 +210,21 @@ Status markers: `[ ]` not started, `[~]` in progress, `[x]` done, `[!]` blocked,
 
 **Gate before Part 3 — closed (signed off 2026-05-03).**
 
-**Part 3 — use-skill smoke (deferred to Phase 7b):**
+**Part 3 — use-skill smoke (closed out 2026-05-04 after Phase 7b#1 AppleScript refactor):**
 
-> **Deferred to Phase 7b.** macOS TCC blocks node-spawned synthetic input via nut.js. AppleScript-via-osascript path validated 2026-05-03 (Test 1: terminal-direct keystroke landed; Test 2: Claude.app-spawned MCP-node-spawned osascript also landed). Phase 7b refactor of `os.ts` on macOS unblocks Part 3 smoke.
+- [x] User confirms the rosetta MCP is installed in Claude Desktop and the 14 tools appear (verified via `/` slash menu and "list tools" prompt).
+- [x] User pastes the use seed skill in a fresh chat.
+- [x] Test prompt sequence:
+   - Easy: "Open /Users/wesleys/Desktop/image.jpg in Photoshop" — **passed** after the bundle_id fix landed in commit `aa0b716` (`open -a "Adobe Photoshop"` failed against an installed `Adobe Photoshop 2026`; switched `openAppMacos` to prefer `open -b <bundle_id>`).
+   - Single param: "In Photoshop, increase brightness by 15" — **passed** end-to-end. Menu navigation Image → Adjustments → Brightness/Contrast committed; brightness applied.
+   - Chain: "In Photoshop, increase brightness by 15, then save as PNG to /Users/wesleys/Desktop/test-output.png" — **partial.** Brightness step passed. Save step entered the Save a Copy dialog correctly but Photoshop defaulted the format to JPEG (because the source was a .jpg) and stalled on the JPEG Options dialog. The save-as-png seed shortcut design assumes typing a `.png` path switches the format dropdown; Photoshop does not. **Seed shortcut bug**, fix queued for Phase 7b#2 (demo content expansion). The keystroke / menu / dialog dispatch path itself worked correctly through every step.
+- [x] Confirm Execution rows in Postgres + `/lookup` returns Photoshop shortcuts with stats. Verified via `curl https://rosetta-production-e301.up.railway.app/lookup?app_id=photoshop&intent=open&platform=macos&app_version=27.4.0` — response includes `stats: {use_count: 4, last_validated: "2026-05-04T05:03:37.850Z"}` and `cold_start: true` (correct, below MIN_SAMPLES_FOR_SCORE=5). Telemetry pipeline live; ShortcutStats aggregating; lookup merge working.
 
-- [-] User confirms the rosetta MCP is installed in their Claude desktop chat client and the 14 tools appear. (User may need help locating the correct config file — Cowork preferences vs Claude Desktop MCP config — confirm the install worked before moving on.)
-- [-] User pastes the use seed skill in a fresh chat.
-- [-] Test prompt sequence (run all three; report what happens):
-   - Easy: "Open ~/Pictures/[any-test-image].jpg in Photoshop"
-   - Single param: "In Photoshop, increase brightness by 15"
-   - Chain: "In Photoshop, increase brightness by 15, then save as PNG to ~/Desktop/test-output.png"
-- [-] Confirm Execution rows in Postgres show real `install_id` (not "smoke-1"); `success`/`error_class` reflect verify outcomes; `/lookup` starts returning Photoshop shortcuts (`cold_start: true` since no stats yet).
+**Outstanding from Part 3 (carried to Phase 7b):**
+
+- **Verify path on Photoshop is currently no-op.** Two coupled blockers: (i) `os_screenshot` returns full-screen base64 which exceeds Claude Desktop's 1 MB tool-result limit, (ii) `verify(interpret_check)` calls the Anthropic API server-side from the MCP, requiring contributors to set `ROSETTA_ANTHROPIC_API_KEY`. West's architectural call: refactor `verify(interpret_check)` to return the screenshot path + question to the agent so the agent self-interprets using its own vision. Removes the API-key dependency AND the 1 MB limit. Tracked as the next Phase 7b substep.
+- **Save-as-png seed shortcut bug.** The shortcut needs to explicitly select PNG in the format dropdown rather than rely on file-extension inference. Phase 7b#2.
+- **Smaller-screenshot region capture** (parking-lot 16) becomes a token-cost optimization once the verify refactor lands.
 
 **Estimate:** 6–10 hours (Part 1 ~2h, Part 2 ~3-5h, Part 3 ~1-2h plus install + iteration time).
 

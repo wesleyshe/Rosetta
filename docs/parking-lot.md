@@ -209,3 +209,21 @@ Deferred items, **ranked by priority — top = highest priority**. The first ite
 **Trigger to pick up:** Once there's measurable usage and a meaningful contributor base. Probably post-launch.
 
 **Placeholder behavior:** Schema reserves `contributor_id` (GitHub username, populated from day one) and `payment_destination` (nullable, will be filled in when payments ship). No backfill needed later.
+
+---
+
+## 16. Smaller screenshots for vision-based verification (region capture)
+
+**What:** `os_screenshot` accepts a `region: {x, y, width, height}` parameter, but the agent has no automated way to figure out useful regions. Full-screen captures on retina displays land at 5 to 10 MB, which inflates vision-model token cost on every `interpret_check` verification and (until the verify refactor lands) blows past Claude Desktop's 1 MB tool-result limit. Three improvements surfaced during the Phase 7a Part 3 Photoshop smoke (2026-05-04):
+
+- (a) **Frontmost-window shorthand:** `os_screenshot({ region: "frontmost_window" })` resolves the front window's bounds via osascript (`position of front window` + `size of front window`), captures only that rect. Helps every app, not just Photoshop. Cheapest piece, ~30 min implementation.
+- (b) **Per-app AX-based canvas detection:** new AX rules like `photoshop_canvas_bounds` that return the document area's frame rect by traversing the AX tree. More involved; some apps (Photoshop) hide the canvas from AX entirely, so this would have to deduce by subtracting toolbars/panels from the window rect.
+- (c) **Shortcut-declared static regions:** `verification.region: {x, y, width, height}` or `{relative_to: "window", ...}` on a per-shortcut basis. Brittle across window sizes and DPI; precise when authored carefully.
+
+**Why deferred:** The verify(interpret_check) refactor (planned next substep, Phase 7b) eliminates the 1 MB tool-result limit by passing screenshots as paths instead of base64. With that fix, full-screen captures still work; smaller is purely an optimization. Token cost is real but bounded at v0 scale.
+
+**Trigger to pick up:** When demo speed or vision-model spend becomes a real bottleneck, or when authoring shortcuts for an app where canvas-only verification is materially more reliable than full-window. Earliest meaningful trigger: seed registry surpasses ~5 verified Photoshop shortcuts and verification logs show false-positives caused by non-canvas regions (panels, system menubar) changing between before/after captures.
+
+**Placeholder behavior:** `os_screenshot` accepts a region but the agent must compute coordinates manually. In practice the agent captures full-screen and accepts the larger payload.
+
+**Note on numbering:** This item appends at #16 rather than slotting in by priority because earlier items (parking-lot 2, 4, 5, 6, 7, 8, 12, 13) are referenced by stable number elsewhere in code, change-log, and docs. Renumbering would invalidate those references. The preamble's "renumber the list" guidance pre-dates those references; treat numbers as stable IDs going forward.
