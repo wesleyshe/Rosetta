@@ -2,33 +2,37 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>App &mdash; Rosetta</title>
+  <title>App — Rosetta</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-  <header>
-    <p class="back"><a href="/">&larr; Back to Rosetta</a></p>
-    <h1 id="app-display-name">Loading&hellip;</h1>
-    <p id="app-meta-line" class="note"></p>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="app-header">
+    <a class="back-link" href="/">&larr; Back to Rosetta</a>
+    <h1 class="app-name" id="app-display-name">Loading&hellip;</h1>
+    <p class="app-meta-line" id="app-meta-line"></p>
   </header>
 
-  <main>
-    <nav class="tabs">
-      <button class="tab-btn active" data-tab="human" type="button">Human view</button>
-      <button class="tab-btn" data-tab="raw" type="button">Raw JSON</button>
+  <main id="main">
+    <nav class="tabs" role="tablist" aria-label="App view">
+      <button class="tab-btn active" data-tab="human" type="button" role="tab" aria-selected="true">Human view</button>
+      <button class="tab-btn" data-tab="raw" type="button" role="tab" aria-selected="false">Raw JSON</button>
     </nav>
 
-    <section id="tab-human" class="tab-panel active">
+    <section id="tab-human" class="tab-panel active" role="tabpanel">
       <h2>Agent primer</h2>
-      <div id="agent-primer"></div>
+      <div class="agent-primer" id="agent-primer"></div>
+
       <h2>Workflow</h2>
-      <div id="workflow"></div>
+      <div class="workflow-block" id="workflow"></div>
+
       <h2>Shortcuts</h2>
-      <ul id="shortcuts"></ul>
+      <ul class="shortcut-list" id="shortcuts"></ul>
     </section>
 
-    <section id="tab-raw" class="tab-panel">
+    <section id="tab-raw" class="tab-panel" role="tabpanel">
       <h2>meta.json</h2>
       <pre><code id="raw-meta"></code></pre>
       <h2>workflow.json</h2>
@@ -43,6 +47,9 @@
   </footer>
 
   <script>
+    // Reliability data is not wired to /lookup in the design pass; all shortcuts
+    // render as cold-start ("new"). Wiring to /lookup (which merges live stats
+    // into the static spec JSON) is a follow-up substep.
     const params = new URLSearchParams(location.search);
     const appId = params.get("app");
 
@@ -79,6 +86,7 @@
     }
 
     function renderApp(meta, workflow, shortcuts) {
+      document.title = meta.display_name + " — Rosetta";
       document.getElementById("app-display-name").textContent = meta.display_name;
       const metaParts = [
         meta.id,
@@ -93,29 +101,22 @@
 
       const wf = document.getElementById("workflow");
       wf.innerHTML = "";
-      wf.appendChild(kv("Default dispatch strategy", workflow.default_dispatch_strategy.join(" → ")));
-      wf.appendChild(kv("Default verification", workflow.verification_default));
-      wf.appendChild(kv("Failure recovery", workflow.failure_recovery.join(" → ")));
+      appendKv(wf, "Default dispatch", workflow.default_dispatch_strategy.join(" → "));
+      appendKv(wf, "Default verification", workflow.verification_default);
+      appendKv(wf, "Failure recovery", workflow.failure_recovery.join(" → "));
+
+      // Sort: warm shortcuts first by reliability_score desc, cold-start after
+      // in document order. v0 has no live stats, so all are cold-start.
+      const list = (shortcuts.shortcuts || []).slice().sort((a, b) => {
+        const ra = (a.reliability_score == null) ? -1 : a.reliability_score;
+        const rb = (b.reliability_score == null) ? -1 : b.reliability_score;
+        return rb - ra;
+      });
 
       const ul = document.getElementById("shortcuts");
       ul.innerHTML = "";
-      for (const s of shortcuts.shortcuts || []) {
-        const li = document.createElement("li");
-        const idCode = document.createElement("code");
-        idCode.textContent = s.id;
-        li.appendChild(idCode);
-        li.appendChild(textNode(" · "));
-        li.appendChild(span("method", s.method));
-        li.appendChild(textNode(" · "));
-        li.appendChild(span("verify", s.verification.type));
-        li.appendChild(span("intent", s.intent));
-        const m = s.metadata;
-        const metaLine = "platforms: " + s.platforms.join(", ") +
-          " · ~" + m.token_cost_estimate + " tokens" +
-          " · ~" + m.speed_estimate_ms + "ms" +
-          " · contributed by " + m.contributor_id;
-        li.appendChild(span("shortcut-meta", metaLine));
-        ul.appendChild(li);
+      for (const s of list) {
+        ul.appendChild(renderShortcutRow(s));
       }
 
       document.getElementById("raw-meta").textContent = JSON.stringify(meta, null, 2);
@@ -123,21 +124,99 @@
       document.getElementById("raw-shortcuts").textContent = JSON.stringify(shortcuts, null, 2);
     }
 
-    function kv(label, value) {
-      const p = document.createElement("p");
-      const strong = document.createElement("strong");
-      strong.textContent = label + ": ";
-      p.appendChild(strong);
-      p.appendChild(document.createTextNode(value));
-      return p;
+    function renderShortcutRow(s) {
+      const li = document.createElement("li");
+      li.className = "shortcut-row";
+
+      const main = document.createElement("div");
+      main.className = "shortcut-main";
+
+      const intent = document.createElement("h3");
+      intent.className = "shortcut-intent";
+      intent.textContent = s.intent;
+      main.appendChild(intent);
+
+      const tags = document.createElement("div");
+      tags.className = "shortcut-tags";
+      tags.appendChild(makeTag("tag-method", s.method));
+      tags.appendChild(makeTag("tag-verify", s.verification.type));
+      tags.appendChild(makeTag("tag-platforms", s.platforms.join(", ")));
+      main.appendChild(tags);
+
+      const idP = document.createElement("p");
+      idP.className = "shortcut-id";
+      idP.textContent = s.id;
+      main.appendChild(idP);
+
+      const m = s.metadata || {};
+      const metaP = document.createElement("p");
+      metaP.className = "shortcut-meta";
+      const parts = [];
+      if (m.token_cost_estimate != null) parts.push("~" + m.token_cost_estimate + " tokens");
+      if (m.speed_estimate_ms != null) parts.push("~" + m.speed_estimate_ms + "ms");
+      if (m.contributor_id) parts.push(m.contributor_id);
+      metaP.textContent = parts.join(" · ");
+      main.appendChild(metaP);
+
+      li.appendChild(main);
+      li.appendChild(renderReliabilityCell(s));
+      return li;
     }
-    function span(cls, text) {
-      const s = document.createElement("span");
-      s.className = cls;
-      s.textContent = text;
-      return s;
+
+    function renderReliabilityCell(s) {
+      const cell = document.createElement("div");
+      cell.className = "reliability-cell";
+
+      // Warm path: present when /lookup-merged data lands here. Kept inert in v0
+      // since static fetches return no stats.
+      if (s.reliability_score != null) {
+        const pct = Math.round(s.reliability_score * 100);
+        const warm = document.createElement("div");
+        warm.className = "reliability-warm";
+        const pctSpan = document.createElement("span");
+        pctSpan.className = "reliability-pct";
+        pctSpan.textContent = pct + "%";
+        warm.appendChild(pctSpan);
+        const bar = document.createElement("div");
+        bar.className = "reliability-bar";
+        const fill = document.createElement("div");
+        fill.className = "reliability-bar-fill";
+        fill.style.width = pct + "%";
+        bar.appendChild(fill);
+        warm.appendChild(bar);
+        cell.appendChild(warm);
+        if (s.use_count != null) {
+          const n = document.createElement("span");
+          n.className = "reliability-n";
+          n.textContent = "n=" + s.use_count;
+          cell.appendChild(n);
+        }
+      } else {
+        const badge = document.createElement("span");
+        badge.className = "badge-new";
+        badge.textContent = "New";
+        cell.appendChild(badge);
+      }
+      return cell;
     }
-    function textNode(t) { return document.createTextNode(t); }
+
+    function makeTag(extraClass, text) {
+      const span = document.createElement("span");
+      span.className = "tag " + extraClass;
+      span.textContent = text;
+      return span;
+    }
+
+    function appendKv(parent, label, value) {
+      const l = document.createElement("div");
+      l.className = "workflow-row-label";
+      l.textContent = label;
+      const v = document.createElement("div");
+      v.className = "workflow-row-value";
+      v.textContent = value;
+      parent.appendChild(l);
+      parent.appendChild(v);
+    }
 
     function escapeHtml(s) {
       return String(s).replace(/[&<>"']/g, c => ({
@@ -169,9 +248,13 @@
 
     document.querySelectorAll(".tab-btn").forEach(btn => {
       btn.addEventListener("click", () => {
-        document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+        document.querySelectorAll(".tab-btn").forEach(b => {
+          b.classList.remove("active");
+          b.setAttribute("aria-selected", "false");
+        });
         document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
         btn.classList.add("active");
+        btn.setAttribute("aria-selected", "true");
         document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
       });
     });

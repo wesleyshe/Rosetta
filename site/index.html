@@ -4,46 +4,51 @@
   <meta charset="UTF-8">
   <title>Rosetta — community registry of AI agent skills</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Community registry of skills that lets any MCP-capable AI client drive desktop apps without per-app integration.">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-  <header>
-    <h1>Rosetta</h1>
-    <p class="tagline">Community registry of "skills" that lets AI agents control desktop apps without per-app integration.</p>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="hero">
+    <a href="/" class="wordmark">Rosetta</a>
+    <h1 class="thesis">Make every software, every website, every desktop app agentic.</h1>
+    <p class="hero-sub">Community registry of skills that lets any MCP-capable AI client drive desktop apps without per-app integration.</p>
   </header>
 
-  <main>
-    <section id="intro">
-      <h2>What this is</h2>
-      <p>Two seed skills (text blobs you paste into your AI client) plus one MCP server (one-line install) plus this hosted JSON registry. The agent looks up how to do things in apps, executes them deterministically, and verifies the result. Discover once, replay deterministically, fall back to vision when needed.</p>
-      <p>Designed to work with: Claude Desktop, Claude Code, Cursor, ChatGPT Desktop, Gemini CLI &mdash; any client that supports MCP. Web chat clients (chatgpt.com, claude.ai, gemini.google.com) are out of scope for v0.</p>
-    </section>
-
+  <main id="main">
     <section id="install">
       <h2>Install</h2>
-      <p>Run the MCP server locally:</p>
-      <pre><code>npx @rosetta-skills/mcp</code></pre>
-      <p class="note">npm name TBD. v0 not yet published &mdash; see <a href="https://github.com/wesleyshe/Rosetta">github.com/wesleyshe/Rosetta</a> for status.</p>
-      <p>Then paste one of the two seed skills below into your AI client's instructions / system prompt.</p>
+      <p>Run the MCP locally. One command.</p>
+      <div class="copy-row">
+        <button class="copy-btn" data-target="install-cmd" aria-label="Copy install command to clipboard">Copy</button>
+      </div>
+      <pre><code id="install-cmd">npx @rosetta-skills/mcp</code></pre>
+      <p class="status-note">Pre-launch. Final npm name pending — track status at <a href="https://github.com/wesleyshe/Rosetta">github.com/wesleyshe/Rosetta</a>.</p>
     </section>
 
     <section id="use-skill">
-      <h2>Use skill <span class="note">(no auth required)</span></h2>
-      <p>Paste this to give your agent the ability to use shortcuts from the registry.</p>
-      <button class="copy-btn" data-target="use-skill-text">Copy</button>
-      <pre><code id="use-skill-text">Loading&hellip;</code></pre>
+      <h2>Use skill <span class="hint">no auth required</span></h2>
+      <p>Paste this into your AI client. Your agent gains the ability to use shortcuts from the registry.</p>
+      <div class="copy-row">
+        <button class="copy-btn" data-target="use-skill-text" aria-label="Copy use-skill text to clipboard">Copy</button>
+      </div>
+      <pre class="seed-block"><code id="use-skill-text">Loading&hellip;</code></pre>
     </section>
 
     <section id="explore-skill">
-      <h2>Explore skill <span class="note">(GitHub OAuth required)</span></h2>
-      <p>Paste this to give your agent the ability to map a new app and contribute shortcuts back to the registry.</p>
-      <button class="copy-btn" data-target="explore-skill-text">Copy</button>
-      <pre><code id="explore-skill-text">Loading&hellip;</code></pre>
+      <h2>Explore skill <span class="hint">GitHub OAuth required to submit</span></h2>
+      <p>Paste this to give your agent the ability to map a new app and contribute shortcuts back.</p>
+      <div class="copy-row">
+        <button class="copy-btn" data-target="explore-skill-text" aria-label="Copy explore-skill text to clipboard">Copy</button>
+      </div>
+      <pre class="seed-block"><code id="explore-skill-text">Loading&hellip;</code></pre>
     </section>
 
     <section id="apps">
       <h2>Apps in the registry</h2>
-      <ul id="app-list"><li class="note">Loading&hellip;</li></ul>
+      <p>Apps in the registry, ordered by last update.</p>
+      <div id="app-list" class="app-grid"><p class="note">Loading&hellip;</p></div>
     </section>
   </main>
 
@@ -74,7 +79,7 @@
         try {
           await navigator.clipboard.writeText(target.textContent);
           const original = btn.textContent;
-          btn.textContent = "Copied!";
+          btn.textContent = "Copied";
           setTimeout(() => { btn.textContent = original; }, 1500);
         } catch (e) {
           btn.textContent = "Copy failed";
@@ -91,25 +96,42 @@
         });
         list.innerHTML = "";
         if (!data.apps || data.apps.length === 0) {
-          list.innerHTML = '<li class="note">No apps registered yet.</li>';
+          list.innerHTML = '<p class="note">No apps registered yet.</p>';
           return;
         }
-        for (const app of data.apps) {
-          const li = document.createElement("li");
+        // Sort by last_updated desc per design intent ("ordered by last update").
+        const apps = data.apps.slice().sort((a, b) =>
+          (b.last_updated || "").localeCompare(a.last_updated || "")
+        );
+        for (const app of apps) {
           const a = document.createElement("a");
+          a.className = "app-card";
           a.href = "/app.html?app=" + encodeURIComponent(app.id);
-          a.textContent = app.display_name;
-          li.appendChild(a);
-          const meta = document.createElement("span");
-          meta.className = "note";
+
+          const title = document.createElement("h3");
+          title.className = "app-card-title";
+          title.textContent = app.display_name;
+          a.appendChild(title);
+
+          const meta = document.createElement("p");
+          meta.className = "app-card-meta";
           const skillSuffix = app.skill_count === 1 ? "" : "s";
-          meta.textContent = " · " + app.skill_count + " shortcut" + skillSuffix +
-            " · " + app.platforms.join(", ");
-          li.appendChild(meta);
-          list.appendChild(li);
+          meta.textContent =
+            app.platforms.join(", ") + " · " +
+            app.skill_count + " shortcut" + skillSuffix;
+          a.appendChild(meta);
+
+          if (app.last_updated) {
+            const meta2 = document.createElement("p");
+            meta2.className = "app-card-meta-secondary";
+            meta2.textContent = "Last updated " + app.last_updated;
+            a.appendChild(meta2);
+          }
+
+          list.appendChild(a);
         }
       } catch (e) {
-        list.innerHTML = '<li class="error">Failed to load /registry/index.json: ' + e.message + "</li>";
+        list.innerHTML = '<p class="error">Failed to load /registry/index.json: ' + e.message + "</p>";
       }
     }
     loadApps();
