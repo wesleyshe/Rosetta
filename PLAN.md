@@ -2,7 +2,7 @@
 
 Live document. Update phase status as work progresses. Each phase has a goal, substeps, and a status marker.
 
-Status markers: `[ ]` not started, `[~]` in progress, `[x]` done, `[!]` blocked.
+Status markers: `[ ]` not started, `[~]` in progress, `[x]` done, `[!]` blocked, `[-]` deferred-blocked (carried to a later phase).
 
 ---
 
@@ -208,17 +208,19 @@ Status markers: `[ ]` not started, `[~]` in progress, `[x]` done, `[!]` blocked.
 - [x] `registry/index.json`: photoshop entry added (platforms `["macos"]`, tracked_versions `["25+"]`, skill_count 7).
 - [x] `npm run validate-registry`: `OK: validated 2 app(s).` against vscode + photoshop.
 
-**Gate before Part 3 — pending sign-off.**
+**Gate before Part 3 — closed (signed off 2026-05-03).**
 
-**Part 3 — use-skill smoke (after gate sign-off; requires user MCP install):**
+**Part 3 — use-skill smoke (deferred to Phase 7b):**
 
-- [ ] User confirms the rosetta MCP is installed in their Claude desktop chat client and the 14 tools appear. (User may need help locating the correct config file — Cowork preferences vs Claude Desktop MCP config — confirm the install worked before moving on.)
-- [ ] User pastes the use seed skill in a fresh chat.
-- [ ] Test prompt sequence (run all three; report what happens):
+> **Deferred to Phase 7b.** macOS TCC blocks node-spawned synthetic input via nut.js. AppleScript-via-osascript path validated 2026-05-03 (Test 1: terminal-direct keystroke landed; Test 2: Claude.app-spawned MCP-node-spawned osascript also landed). Phase 7b refactor of `os.ts` on macOS unblocks Part 3 smoke.
+
+- [-] User confirms the rosetta MCP is installed in their Claude desktop chat client and the 14 tools appear. (User may need help locating the correct config file — Cowork preferences vs Claude Desktop MCP config — confirm the install worked before moving on.)
+- [-] User pastes the use seed skill in a fresh chat.
+- [-] Test prompt sequence (run all three; report what happens):
    - Easy: "Open ~/Pictures/[any-test-image].jpg in Photoshop"
    - Single param: "In Photoshop, increase brightness by 15"
    - Chain: "In Photoshop, increase brightness by 15, then save as PNG to ~/Desktop/test-output.png"
-- [ ] Confirm Execution rows in Postgres show real `install_id` (not "smoke-1"); `success`/`error_class` reflect verify outcomes; `/lookup` starts returning Photoshop shortcuts (`cold_start: true` since no stats yet).
+- [-] Confirm Execution rows in Postgres show real `install_id` (not "smoke-1"); `success`/`error_class` reflect verify outcomes; `/lookup` starts returning Photoshop shortcuts (`cold_start: true` since no stats yet).
 
 **Estimate:** 6–10 hours (Part 1 ~2h, Part 2 ~3-5h, Part 3 ~1-2h plus install + iteration time).
 

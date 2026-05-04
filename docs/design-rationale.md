@@ -349,6 +349,18 @@ Both can coexist (issues for tactical work, parking lot for strategic deferrals)
 
 ---
 
+## Why macOS action dispatch goes through AppleScript, not nut.js
+
+Direct synthetic-input calls (CGEventPost via nut.js) require Accessibility permission for the calling binary. When Claude.app spawns the MCP via its disclaimer helper, the actual calling binary is `/usr/local/bin/node` (a system path). macOS won't grant Accessibility to system-path binaries via the GUI Privacy & Security panel, copies of node to non-system paths also fail (verified 2026-05-03), and ad-hoc codesigning workarounds are fragile against node version updates.
+
+The validated alternative: AppleScript via osascript. Synthetic input requests are dispatched via `tell application "System Events" to keystroke ...` commands. System Events is a system daemon that holds Accessibility entitlement by default. macOS attributes the privileged call to System Events, not to the calling chain. The MCP node process simply shells out to osascript; no permissions for node required.
+
+Trade-offs: macOS-only path. Windows and Linux continue using nut.js until those platforms get equivalent native automation (parking-lot work). The long-term distribution answer for all platforms is a signed native helper bundled with the MCP install (parking-lot 7); the AppleScript dispatch is the cheaper interim solution that unblocks v0 launch on macOS.
+
+Validation references: tested 2026-05-03. Test 1 (osascript-from-terminal): keystroke landed in TextEdit. Test 2 (osascript-from-MCP-spawned-node): keystroke landed in the focused window. Both without any TCC permission grants on the node binary.
+
+---
+
 ## What was almost a different product
 
 A few framings West and I considered and rejected. Recording these so the project doesn't accidentally drift back into them:
