@@ -234,14 +234,17 @@ Status markers: `[ ]` not started, `[~]` in progress, `[x]` done, `[!]` blocked,
 
 **Goal:** v0 is shippable to a public audience. The headline demo runs end-to-end. Documentation, install guide, and contributor onboarding are in place. Soft launch goes out.
 
-Stub. Substeps will land in a separate kickoff prompt once Phase 7a Part 3 has reported back. Expected coverage:
-
-- [ ] Demo orchestration: end-to-end "drag a file in, give a chained natural-language instruction, Photoshop executes" flow polished and recorded.
-- [ ] UI/UX design pass on `site/` (parking-lot 2 activates).
-- [ ] CONTRIBUTING.md
-- [ ] `docs/install.md` with the one-command MCP install + paste seed skill flow.
-- [ ] Pitch deck for sharing alongside the launch.
-- [ ] Issue templates for "broken skill" and "missing app".
+- [x] Phase 7b#1 — AppleScript refactor of `mcp/src/os.ts` (commit `226e73d`). macOS dispatch through `osascript` / System Events; nut.js dropped for macOS. `openAppMacos` prefers `bundle_id` (commit `aa0b716`).
+- [x] Phase 7b#2 — `verify(interpret_check)` agent-side refactor (commit `c9bba4c`); strips `ROSETTA_ANTHROPIC_API_KEY` from the use path and removes the 1 MB tool-result limit. `os_screenshot` JPEG resize via sips, 1600 px / quality 60 (commit `e4e2fbf`).
+- [x] Photoshop seed expansion 7 → 37 shortcuts (commit `bf308a8`); explorer-contributed adds 5 more, total 42 (commit `168756f`).
+- [x] Site UI/UX design pass — parking-lot 2 activated (commit `680748c`); per-app page wired to `/lookup` for live stats (commit `29198ce`).
+- [x] CONTRIBUTING.md (commit `57e582e`).
+- [x] `docs/install.md` polished (commit `541f2ce`).
+- [x] GitHub issue templates: shortcut-broken, app-request, schema-gap, install-broken (commit `4f35a47`).
+- [x] OAuth token retrieval flow: `GET /auth/github/token` (commit `a36f696`); explore-skill metadata enumeration (commit `7cd6ad6`).
+- [x] `/lookup` ranking fix: intent-match score is now the primary sort key (commit `da1ae71`).
+- [x] Stale-phrase sweep across docs and source: explore.md, use.md, architecture.md, sub-folder READMEs, `mcp/src/index.ts` tool descriptions, `mcp/src/registry.ts` TODOs, `backend/src/github.ts` PR body.
+- [-] Demo orchestration / pitch deck — user-managed (West).
 - [ ] Soft launch: tweet, HN Show, Reddit r/LocalLLaMA, Anthropic-internal share.
 
 **Estimate:** 8–14 hours, mostly polish + writing.
