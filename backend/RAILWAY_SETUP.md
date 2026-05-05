@@ -48,7 +48,15 @@ npm run prisma:deploy      # creates / syncs tables with schema (prisma db push)
 npm run dev                # starts Fastify on http://localhost:3000
 ```
 
-`prisma:deploy` runs `prisma db push --accept-data-loss --skip-generate`. v0 uses `db push` (idempotent sync from `schema.prisma`) instead of `prisma migrate deploy` — see parking-lot 12 ("Graduate to Prisma migrations") for when this graduates.
+`prisma:deploy` runs `prisma migrate resolve --applied 20260505_init; prisma migrate deploy`. As of 2026-05-05 the backend uses versioned migrations (parking-lot 12). The first half of the script is the cutover baseline — it marks the initial migration as already-applied without running it, since the live tables already exist from the pre-cutover `db push` era. After the first deploy that includes this script, the resolve call becomes a no-op (it errors "already applied", stderr is suppressed, the `;` chains forward to `migrate deploy`).
+
+For schema changes going forward, edit `prisma/schema.prisma`, then from `backend/`:
+
+```
+DATABASE_URL=postgresql://... npx prisma migrate dev --name <description>
+```
+
+This creates a new migration directory under `prisma/migrations/`, applies it to your local DB, and writes the SQL. Commit the migration directory. The next deploy runs `prisma migrate deploy` which applies it on Railway's Postgres in order.
 
 Local writes go to the same Postgres the deployed backend uses. Acceptable in v0; revisit if local dev needs to be safely isolated.
 

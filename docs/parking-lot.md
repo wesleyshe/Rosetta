@@ -19,7 +19,7 @@ Numbers are stable IDs (referenced by code, change-log, and docs). Items don't m
 | 9  | Multi-window / multi-instance app handling            | Partially implemented (2026-05-05) |
 | 10 | Adversarial app vendors                               | Resolved — no engineering action |
 | 11 | Internationalization / locale variation               | Partially implemented (2026-05-05) |
-| 12 | Graduate to Prisma migrations                         | Parked                       |
+| 12 | Graduate to Prisma migrations                         | Implemented (2026-05-05)     |
 | 13 | Skill schema versioning beyond major-version bumps    | Partially implemented (2026-05-05) |
 | 14 | Web chat client support                               | Parked                       |
 | 15 | Payment / contributor reward economy                  | Parked                       |
@@ -185,17 +185,25 @@ No further code work is planned for this item.
 
 ---
 
-## 12. Graduate to Prisma migrations
+## 12. Graduate to Prisma migrations (IMPLEMENTED 2026-05-05)
 
-**What:** v0 uses `prisma db push --accept-data-loss --skip-generate` to bring the database into sync with `backend/prisma/schema.prisma` on every deploy. This is idempotent and requires no migration files, which lets us iterate the schema without ceremony. It does NOT give us versioned schema changes, rollback, audit, or safe destructive-change handling once the database holds real data.
+**What:** v0 used to use `prisma db push --accept-data-loss --skip-generate` to sync the live DB to `schema.prisma` on every deploy. That was idempotent but offered no versioned schema changes, rollback, audit, or safe destructive-change handling once production held real data — and production already has telemetry data (Execution / ShortcutStats rows from the Photoshop smoke runs).
 
-**Why deferred:** Phase 6a v0 has zero rows in production and a schema that's still settling. `prisma migrate dev` would force a migration commit per schema tweak before the design has stabilized. `db push` keeps the iteration loop fast for the same blast-radius (an empty/dev-only DB).
+**Status:** Switched to versioned migrations. `backend/prisma/migrations/20260505_init/migration.sql` is the baseline (generated via `prisma migrate diff --from-empty --to-schema-datamodel`). `backend/package.json`'s `prisma:deploy` is now:
 
-**Trigger to pick up:** First non-trivial schema change after launch where the production DB has real `Execution` / `ShortcutStats` / `Contributor` / `Submission` rows that need preserving across the change. At that point switch to `prisma migrate deploy`, generate an initial baseline migration from the live schema, and bake migration creation into the contributor workflow.
+```
+prisma migrate resolve --applied 20260505_init 2>/dev/null; prisma migrate deploy
+```
 
-**Placeholder behavior:** `backend/package.json`'s `prisma:deploy` script is `prisma db push --accept-data-loss --skip-generate`. The `--accept-data-loss` flag is a no-op on a schema-compatible push; it only matters when the schema would force a destructive change, at which point the script silently drops data. Acceptable in v0 because there is no data worth keeping; UNACCEPTABLE post-launch — that's the trigger.
+The first half is the cutover baseline — it marks the initial migration as already-applied without running it, since the live tables already exist. On subsequent deploys the resolve call errors ("already applied"), stderr is suppressed, the `;` chains forward to `migrate deploy`. `migrate deploy` then applies any new migrations in order.
 
-**Related:** parking-lot 13 (skill schema versioning) covers the JSON-spec side. This item covers the Postgres side. They graduate independently.
+**Contributor workflow for schema changes:** edit `backend/prisma/schema.prisma`, then from `backend/`: `DATABASE_URL=postgresql://... npx prisma migrate dev --name <description>`. Commits the new migration directory; the next deploy applies it.
+
+**Operator cutover note:** The very first deploy after this commit lands does the baseline resolve. Watch the deploy log for either `Migration 20260505_init marked as applied.` (first time) or `migrate deploy ... No pending migrations to apply.` (idempotent on subsequent deploys). If both fail, Railway's logs will surface the error — most likely a `_prisma_migrations` table state we didn't predict.
+
+**Still parked:**
+- Rollback tooling for a bad migration that already deployed. Prisma migrate doesn't ship one out of the box; would need a hand-written down-migration discipline.
+- Migration safety review: lint that detects destructive changes (column drop, type narrow) and requires explicit acknowledgment.
 
 ---
 
