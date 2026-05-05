@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 // rosetta-mcp entry point.
 //
-// Fourteen tools, all wired in:
+// Fifteen tools, all wired in:
 //   Registry:          registry_list_apps, registry_lookup,
 //                      registry_report_execution, registry_submit
-//   App detection:     os_app_info
+//   App detection:     os_app_info, os_list_windows
 //   Computer control:  os_screenshot, os_action, os_read_ax_tree
 //   Verification:      verify, interpret
 //   Explore session:   explore_start_session, explore_save_finding,
@@ -28,6 +28,7 @@ import {
   screenshot,
   action as osAction,
   readAxTree,
+  listWindows,
   type ActionSpec,
   type AxQuery,
   type AxRule,
@@ -199,13 +200,13 @@ const tools = [
   {
     name: "os_action",
     description:
-      "Perform a single OS-level input action: key, key_combo, type_text, click, menu, or open_app. Discriminated by `type`. macOS is fully implemented via osascript / System Events; Windows/Linux throw. Coordinate `click` is AX-mediated (works in apps with clean accessibility trees, may fail silently on opaque surfaces like Photoshop's canvas interior). (Conceptually `os.action`.)",
+      "Perform a single OS-level input action: key, key_combo, type_text, click, menu, open_app, or focus_window. Discriminated by `type`. macOS is fully implemented via osascript / System Events; Windows/Linux throw. Coordinate `click` is AX-mediated (works in apps with clean accessibility trees, may fail silently on opaque surfaces like Photoshop's canvas interior). `focus_window` brings a specific window of the frontmost app (or of `app_id` when set) to the front before subsequent keystrokes — pass `match: \"title_contains\" | \"title_equals\" | \"index\"` and `value` (string for title-based, number for index). (Conceptually `os.action`.)",
     inputSchema: {
       type: "object" as const,
       properties: {
         type: {
           type: "string",
-          enum: ["key", "key_combo", "type_text", "click", "menu", "open_app"],
+          enum: ["key", "key_combo", "type_text", "click", "menu", "open_app", "focus_window"],
           description: "Action variant.",
         },
         key: { type: "string", description: 'For type=key: e.g. "Enter", "Cmd+S".' },
@@ -222,13 +223,39 @@ const tools = [
           items: { type: "string" },
           description: 'For type=menu: menu path, e.g. ["File", "Save"].',
         },
-        app_id: { type: "string", description: 'For type=open_app: registry app id (e.g. "vscode").' },
+        app_id: {
+          type: "string",
+          description: 'For type=open_app: registry app id (e.g. "vscode"). For type=focus_window: optional app_id; if absent, focus_window targets whichever app is currently frontmost.',
+        },
         platform_specific: {
           type: "boolean",
           description: "For type=open_app: when true, defer to the platform-specific launcher path in meta.json.",
         },
+        match: {
+          type: "string",
+          enum: ["title_contains", "title_equals", "index"],
+          description: "For type=focus_window: how to identify the target window.",
+        },
+        value: {
+          description: "For type=focus_window: match value. String for title-based, number for index.",
+        },
       },
       required: ["type"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "os_list_windows",
+    description:
+      "Enumerate windows of an app (the frontmost app by default, or `app_id` when passed). Returns `{app_id?, process_name, windows: [{index, title}, ...]}`. Use this before calling `os_action` with `type: \"focus_window\"` so the agent knows which window titles or indices are available. macOS only in v0. (Conceptually `os.list_windows`.)",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        app_id: {
+          type: "string",
+          description: "Optional. Registry app id (e.g. \"vscode\"). Without it, lists windows of the frontmost app.",
+        },
+      },
       additionalProperties: false,
     },
   },
@@ -474,6 +501,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
       case "os_action": {
         result = await osAction(args as unknown as ActionSpec);
+        break;
+      }
+      case "os_list_windows": {
+        const appId = typeof args.app_id === "string" ? args.app_id : undefined;
+        result = await listWindows(appId);
         break;
       }
       case "os_read_ax_tree": {

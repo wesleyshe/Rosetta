@@ -18,7 +18,7 @@ task on a desktop application or website, follow this protocol:
    confirmation — if the user's original request already named the
    destructive action explicitly (e.g. "flatten the image and save it as
    cat.png"), treat that as consent and proceed without re-asking.
-6. Open the app via `os.action({ type: "open_app", ... })` if it isn't already.
+6. Open the app via `os.action({ type: "open_app", ... })` if it isn't already. If the user's request names a specific window of a multi-window app ("the project-foo VS Code window"), call `os.list_windows({ app_id })` to enumerate windows and then `os.action({ type: "focus_window", match: "title_contains", value: "project-foo" })` to bring it to the front before sending keystrokes.
 7. Execute the chosen shortcut's actions in order via `os.action(...)`.
 8. After the actions, run the shortcut's `verification` spec via `verify(...)`.
    Handle the result based on its shape:

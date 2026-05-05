@@ -44,7 +44,14 @@ export type VerificationSpec =
       right: unknown;
       comparator?: "equals" | "contains" | "starts_with" | "ends_with";
     }
-  | { type: "interpret_check"; question: string; expected: string }
+  | {
+      type: "interpret_check";
+      question: string;
+      expected: string;
+      region?:
+        | { x: number; y: number; width: number; height: number }
+        | { relative_to: "window"; x: number; y: number; width: number; height: number };
+    }
   | { type: "wait_for_idle"; max_seconds: number; idle_seconds?: number };
 
 export interface VerifyOptions {
@@ -451,9 +458,13 @@ async function verifyInterpret(
   const question = substitute(spec.question, params);
   const expected = substitute(spec.expected, params);
 
+  // If the shortcut declared a region, capture only that. Otherwise default
+  // to the frontmost window — smaller payload, less noise from menubar /
+  // desktop / other apps. Falls through to full-screen if no window.
+  const regionInput = spec.region ?? "frontmost_window";
   let shot: ScreenshotResult;
   try {
-    shot = await screenshot({ format: "jpg" });
+    shot = await screenshot({ format: "jpg", region: regionInput });
   } catch (e) {
     return {
       passed: false,

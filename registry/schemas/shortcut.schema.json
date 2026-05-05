@@ -214,7 +214,8 @@
         { "$ref": "#/$defs/typeTextAction" },
         { "$ref": "#/$defs/clickAction" },
         { "$ref": "#/$defs/menuAction" },
-        { "$ref": "#/$defs/openAppAction" }
+        { "$ref": "#/$defs/openAppAction" },
+        { "$ref": "#/$defs/focusWindowAction" }
       ]
     },
     "keyAction": {
@@ -322,6 +323,32 @@
         "platform_specific": {
           "type": "boolean",
           "description": "Workflow.open[] form: signals the MCP to use the app's detection block to launch."
+        }
+      }
+    },
+    "focusWindowAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "match"],
+      "description": "Parking-lot 9: target a specific window of the frontmost app before sending keystrokes. Resolves the window via osascript (System Events) and brings it to front. If no window matches, the action throws so the agent can recover (try a different match, or fall back to the focused window).",
+      "properties": {
+        "type": { "const": "focus_window" },
+        "match": {
+          "type": "string",
+          "enum": ["title_contains", "title_equals", "index"],
+          "description": "How to identify the target window. \"title_contains\" / \"title_equals\" inspect the window title (case-sensitive); \"index\" picks the Nth window of the frontmost app (0-based)."
+        },
+        "value": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "number" }
+          ],
+          "description": "Match value. String for title-based matches (may contain {parameter} placeholders); number for index. Required for all match modes."
+        },
+        "app_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
+          "description": "Optional. If set, ensure this app is frontmost first; otherwise focus_window targets whichever app is currently frontmost."
         }
       }
     },
@@ -447,6 +474,36 @@
           "type": "string",
           "minLength": 1,
           "description": "Expected answer fragment. Match is case-insensitive substring in v0."
+        },
+        "region": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["x", "y", "width", "height"],
+              "description": "Absolute rectangle in logical pixels.",
+              "properties": {
+                "x": { "type": "number" },
+                "y": { "type": "number" },
+                "width": { "type": "number", "exclusiveMinimum": 0 },
+                "height": { "type": "number", "exclusiveMinimum": 0 }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["relative_to", "x", "y", "width", "height"],
+              "description": "Rectangle resolved against the frontmost window's top-left at capture time. x and y are offsets from that origin.",
+              "properties": {
+                "relative_to": { "const": "window" },
+                "x": { "type": "number" },
+                "y": { "type": "number" },
+                "width": { "type": "number", "exclusiveMinimum": 0 },
+                "height": { "type": "number", "exclusiveMinimum": 0 }
+              }
+            }
+          ],
+          "description": "Parking-lot 16(c): optional region for the screenshot the agent judges. Without this, verify(interpret_check) captures the frontmost window (per the os_screenshot frontmost_window shorthand). Use absolute coordinates for fixed-position UI; use relative_to:window for window-anchored regions that should follow the app as it moves."
         }
       }
     },

@@ -100,6 +100,7 @@ The following live in the Postgres `ShortcutStats` table and must never appear i
 | `click`      | `{ type, target: {x, y} \| {ax_path} }`                              | Coordinate clicks are fragile across resolutions; prefer `ax_path`.                                                               |
 | `menu`       | `{ type, path: ["File", "New File", ...] }`                          | Walks the OS menu bar. Locale-dependent (parking-lot item 11).                                                                    |
 | `open_app`   | `{ type, app_id }` **OR** `{ type, platform_specific: true }`        | First form for `shortcut.actions[]`; second form for `workflow.open[]`. Mutually exclusive — schema rejects both/neither present. |
+| `focus_window` | `{ type, match: "title_contains" \| "title_equals" \| "index", value, app_id? }` | Parking-lot 9. Brings a specific window of the frontmost app (or `app_id` when set) to the front before subsequent keystrokes. Use when an app has multiple windows and the action targets a non-frontmost one. |
 
 The action `$defs` are byte-identical between `workflow.schema.json` and `shortcut.schema.json`. Any change to action types must touch both files — the validator lints this.
 

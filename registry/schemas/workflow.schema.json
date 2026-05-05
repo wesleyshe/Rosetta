@@ -86,7 +86,8 @@
         { "$ref": "#/$defs/typeTextAction" },
         { "$ref": "#/$defs/clickAction" },
         { "$ref": "#/$defs/menuAction" },
-        { "$ref": "#/$defs/openAppAction" }
+        { "$ref": "#/$defs/openAppAction" },
+        { "$ref": "#/$defs/focusWindowAction" }
       ]
     },
     "keyAction": {
@@ -194,6 +195,32 @@
         "platform_specific": {
           "type": "boolean",
           "description": "Workflow.open[] form: signals the MCP to use the app's detection block to launch."
+        }
+      }
+    },
+    "focusWindowAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "match"],
+      "description": "Parking-lot 9: target a specific window of the frontmost app before sending keystrokes. Resolves the window via osascript (System Events) and brings it to front. If no window matches, the action throws so the agent can recover (try a different match, or fall back to the focused window).",
+      "properties": {
+        "type": { "const": "focus_window" },
+        "match": {
+          "type": "string",
+          "enum": ["title_contains", "title_equals", "index"],
+          "description": "How to identify the target window. \"title_contains\" / \"title_equals\" inspect the window title (case-sensitive); \"index\" picks the Nth window of the frontmost app (0-based)."
+        },
+        "value": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "number" }
+          ],
+          "description": "Match value. String for title-based matches (may contain {parameter} placeholders); number for index. Required for all match modes."
+        },
+        "app_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
+          "description": "Optional. If set, ensure this app is frontmost first; otherwise focus_window targets whichever app is currently frontmost."
         }
       }
     }

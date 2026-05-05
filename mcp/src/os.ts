@@ -212,6 +212,68 @@ function stubAppInfoLinux(meta: MetaJson): AppInfo {
   };
 }
 
+// ===================== list_windows (parking-lot 9) =====================
+
+export interface WindowInfo {
+  index: number;
+  title: string;
+}
+
+export interface ListWindowsResult {
+  app_id?: string;
+  process_name: string;
+  windows: WindowInfo[];
+}
+
+/** Enumerate windows of the frontmost app (or of the named app_id when
+ *  passed). Used by the agent before issuing a focus_window action. */
+export async function listWindows(appId?: string): Promise<ListWindowsResult> {
+  const platform = currentPlatform();
+  if (platform !== "macos") {
+    throw new Error(`list_windows not yet implemented on ${platform} (macOS only in v0)`);
+  }
+  let processNameClause: string;
+  let processNameForResult: string;
+  if (appId) {
+    const info = await appInfo(appId);
+    if (!info.process_name) {
+      throw new Error(`list_windows: app "${appId}" has no process_name in detection block`);
+    }
+    processNameForResult = info.process_name;
+    processNameClause = `process "${escapeAppleScriptString(info.process_name)}"`;
+  } else {
+    processNameForResult = "(frontmost)";
+    processNameClause = "(first application process whose frontmost is true)";
+  }
+
+  // Returns one title per line. Lines preserve order.
+  const script = `
+    tell application "System Events"
+      tell ${processNameClause}
+        set out to ""
+        set ws to windows
+        repeat with i from 1 to count of ws
+          set out to out & (title of (item i of ws) as string) & linefeed
+        end repeat
+        return out
+      end tell
+    end tell
+  `;
+  let stdout = "";
+  try {
+    const r = await execFileAsync("osascript", ["-e", script], { timeout: 5000 });
+    stdout = r.stdout;
+  } catch (e) {
+    throw new Error(`list_windows: osascript failed: ${(e as Error).message}`);
+  }
+  const titles = stdout.split(/\r?\n/).filter((line) => line.length > 0);
+  return {
+    app_id: appId,
+    process_name: processNameForResult,
+    windows: titles.map((title, index) => ({ index, title })),
+  };
+}
+
 // ===================== screenshot (Phase 4) =====================
 
 export interface ScreenshotRegion {
@@ -221,7 +283,15 @@ export interface ScreenshotRegion {
   height: number;
 }
 
-export type ScreenshotRegionInput = ScreenshotRegion | "frontmost_window";
+export interface RelativeWindowRegion {
+  relative_to: "window";
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export type ScreenshotRegionInput = ScreenshotRegion | RelativeWindowRegion | "frontmost_window";
 
 export interface ScreenshotOptions {
   /** Either an explicit rect, or the string `"frontmost_window"` to
@@ -290,6 +360,19 @@ export async function screenshot(opts: ScreenshotOptions = {}): Promise<Screensh
     const win = await resolveFrontmostWindowRegion();
     if (win) resolvedRegion = win;
     // If null (no windows), fall through to full-screen.
+  } else if (opts.region && typeof opts.region === "object" && "relative_to" in opts.region) {
+    // Resolve { relative_to: "window", x, y, width, height } against the
+    // frontmost window's top-left. Falls through to full-screen if the
+    // app has no window at capture time.
+    const win = await resolveFrontmostWindowRegion();
+    if (win) {
+      resolvedRegion = {
+        x: win.x + opts.region.x,
+        y: win.y + opts.region.y,
+        width: opts.region.width,
+        height: opts.region.height,
+      };
+    }
   } else if (opts.region) {
     resolvedRegion = opts.region;
   }
@@ -336,7 +419,13 @@ export type ActionSpec =
   | { type: "type_text"; text: string }
   | { type: "click"; target: { x: number; y: number } | { ax_path: string } }
   | { type: "menu"; path: string[] }
-  | { type: "open_app"; app_id?: string; platform_specific?: boolean };
+  | { type: "open_app"; app_id?: string; platform_specific?: boolean }
+  | {
+      type: "focus_window";
+      match: "title_contains" | "title_equals" | "index";
+      value: string | number;
+      app_id?: string;
+    };
 
 export interface ActionResult {
   ok: boolean;
@@ -522,6 +611,82 @@ async function typeTextMacos(text: string): Promise<ActionResult> {
   }
 }
 
+async function focusWindowMacos(
+  match: "title_contains" | "title_equals" | "index",
+  value: string | number,
+  appId?: string
+): Promise<ActionResult> {
+  // Resolve the target app's process name. If app_id is provided, use the
+  // registry's detection block to get a process name; otherwise target
+  // whichever app is currently frontmost.
+  let processNameClause: string;
+  if (appId) {
+    let info: AppInfo;
+    try {
+      info = await appInfo(appId);
+    } catch (e) {
+      return { ok: false, error: `focus_window: cannot resolve app_id "${appId}": ${(e as Error).message}` };
+    }
+    if (!info.process_name) {
+      return { ok: false, error: `focus_window: app "${appId}" has no process_name in detection block` };
+    }
+    processNameClause = `process "${escapeAppleScriptString(info.process_name)}"`;
+  } else {
+    processNameClause = "(first application process whose frontmost is true)";
+  }
+
+  // Build the matcher script. Title-based matches iterate windows; index
+  // picks directly. Bring the matched window to the front via "perform
+  // action AXRaise" which is the AX-correct way to raise a window without
+  // changing focus order across apps.
+  let matcherBody: string;
+  if (match === "index") {
+    const idx = typeof value === "number" ? Math.floor(value) + 1 : 1; // AppleScript is 1-based
+    matcherBody = `set targetWin to window ${idx}`;
+  } else if (match === "title_equals") {
+    const v = typeof value === "string" ? value : String(value);
+    matcherBody = `
+      set targetWin to missing value
+      repeat with w in windows
+        if (title of w as string) is "${escapeAppleScriptString(v)}" then
+          set targetWin to w
+          exit repeat
+        end if
+      end repeat
+      if targetWin is missing value then error "no window with title \\"${escapeAppleScriptString(v)}\\""
+    `;
+  } else {
+    // title_contains
+    const v = typeof value === "string" ? value : String(value);
+    matcherBody = `
+      set targetWin to missing value
+      repeat with w in windows
+        if (title of w as string) contains "${escapeAppleScriptString(v)}" then
+          set targetWin to w
+          exit repeat
+        end if
+      end repeat
+      if targetWin is missing value then error "no window whose title contains \\"${escapeAppleScriptString(v)}\\""
+    `;
+  }
+
+  const script = `
+    tell application "System Events"
+      tell ${processNameClause}
+        ${matcherBody}
+        set frontmost to true
+        perform action "AXRaise" of targetWin
+      end tell
+    end tell
+  `;
+  try {
+    await execFileAsync("osascript", ["-e", script], { timeout: 5000 });
+    return { ok: true, details: { match, value } };
+  } catch (e) {
+    return { ok: false, error: `focus_window: ${(e as Error).message}` };
+  }
+}
+
 async function clickMacos(target: { x: number; y: number }): Promise<ActionResult> {
   const { x, y } = target;
   const script = `
@@ -585,6 +750,8 @@ export async function action(spec: ActionSpec): Promise<ActionResult> {
       return await menuMacos(spec.path);
     case "open_app":
       return await openAppMacos(spec);
+    case "focus_window":
+      return await focusWindowMacos(spec.match, spec.value, spec.app_id);
   }
 }
 

@@ -127,10 +127,10 @@ Rosetta's `os_screenshot` shells to `screencapture`, which usually works without
 
 ## Step 4: Verify the install
 
-In Claude Desktop, open a new chat and trigger the slash menu by typing `/`. Tools from the rosetta MCP appear with a `rosetta:` prefix. You should see 14:
+In Claude Desktop, open a new chat and trigger the slash menu by typing `/`. Tools from the rosetta MCP appear with a `rosetta:` prefix. You should see 15:
 
 - `rosetta:registry_list_apps`, `registry_lookup`, `registry_submit`, `registry_report_execution`
-- `rosetta:os_app_info`, `os_screenshot`, `os_action`, `os_read_ax_tree`
+- `rosetta:os_app_info`, `os_screenshot`, `os_action`, `os_list_windows`, `os_read_ax_tree`
 - `rosetta:verify`, `interpret`
 - `rosetta:explore_start_session`, `explore_save_finding`, `explore_budget_status`, `explore_submit_findings`
 
@@ -208,7 +208,7 @@ To start a session over from scratch, ask the agent to call `explore_start_sessi
 
 ### Tool discovery
 
-**14 rosetta tools don't appear in the slash menu.** Three common causes:
+**15 rosetta tools don't appear in the slash menu.** Three common causes:
 
 1. Wrong path in `args`. Run `ls /full/path/to/Rosetta/mcp/dist/index.js` to confirm the file exists.
 2. Built artifact is stale. From `Rosetta/mcp/`, run `npm run build`, then restart Claude Desktop.

@@ -16,7 +16,7 @@ Numbers are stable IDs (referenced by code, change-log, and docs). Items don't m
 | 6  | Bad skills / prompt injection                         | Partially implemented (2026-05-02) |
 | 7  | Nixpacks injects secrets at build time                | Parked                       |
 | 8  | Automated skill decay detection                       | Partially implemented (2026-05-02) |
-| 9  | Multi-window / multi-instance app handling            | Parked                       |
+| 9  | Multi-window / multi-instance app handling            | Partially implemented (2026-05-05) |
 | 10 | Adversarial app vendors                               | Resolved — no engineering action |
 | 11 | Internationalization / locale variation               | Partially implemented (2026-05-05) |
 | 12 | Graduate to Prisma migrations                         | Parked                       |
@@ -141,15 +141,20 @@ Numbers are stable IDs (referenced by code, change-log, and docs). Items don't m
 
 ---
 
-## 9. Multi-window / multi-instance app handling
+## 9. Multi-window / multi-instance app handling (PARTIALLY IMPLEMENTED 2026-05-05)
 
-**What:** Apps like Chrome, VS Code, or Photoshop can have multiple windows or instances. Current schema doesn't disambiguate which window an action targets.
+**What:** Apps like Chrome, VS Code, or Photoshop can have multiple windows or instances. Original v0 assumed the focused window for every action.
 
-**Why deferred:** v0 assumes the focused window. Adequate for most use cases.
+**Status:** Additive surface in. Two new pieces:
 
-**Trigger to pick up:** First user complaint that a shortcut targeted the wrong window.
+- `os_action` gains a `focus_window` action type: `{type: "focus_window", match: "title_contains" | "title_equals" | "index", value, app_id?}`. Resolves the matching window via osascript and raises it via `AXRaise` so the agent can target a specific window before sending keystrokes. Existing shortcuts are unchanged — they still operate on the frontmost window, but the agent can now flip the frontmost window first when the user names a target.
+- `os_list_windows` tool returns `{app_id?, process_name, windows: [{index, title}, ...]}` for the frontmost app or a named `app_id`. The agent calls this before `focus_window` when it doesn't already know the title or index.
 
-**Placeholder behavior:** All `os.action` calls implicitly target the focused window. Workflows are responsible for ensuring focus before acting.
+**Still parked:**
+- Per-action window targeting (route a single keystroke to a non-frontmost window without raising it). Most apps require frontmost focus to receive synthetic input, so the focus-then-act pattern is the right primitive in practice.
+- Multi-instance handling for apps that can have more than one running process under the same bundle id. v0 picks the first matching process.
+
+**Trigger to pick the rest up:** When a user reports a shortcut still targeted the wrong window even after focus_window, or when an app's design forces input without raising (rare).
 
 ---
 
@@ -235,16 +240,18 @@ No further code work is planned for this item.
 
 ---
 
-## 16. Smaller screenshots for vision-based verification (PARTIALLY IMPLEMENTED 2026-05-04)
+## 16. Smaller screenshots for vision-based verification (PARTIALLY IMPLEMENTED 2026-05-04, expanded 2026-05-05)
 
 **What:** `os_screenshot` accepts a `region: {x, y, width, height}` parameter, but the agent has no automated way to figure out useful regions. Full-screen captures on retina displays land at 5 to 10 MB, which inflates vision-model token cost on every `interpret_check` verification.
 
-**Status (post-2026-05-04):** Item (a) is in. `os_screenshot({ region: "frontmost_window" })` resolves the frontmost app's frontmost window bounds via osascript (`position of front window` + `size of front window`), captures only that rect, and falls through to full-screen if the app has no windows. Helps every app, not just Photoshop.
+**Status:** (a) and (c) in. (b) still parked.
+
+- (a) `os_screenshot({ region: "frontmost_window" })` resolves the frontmost app's frontmost window via osascript and captures only that rect; falls through to full-screen if the app has no windows. (2026-05-04)
+- (c) Per-shortcut `verification.region` on `interpret_check`: accepts an absolute `{x, y, width, height}` rect OR `{relative_to: "window", x, y, width, height}` (offsets from the frontmost window's top-left, resolved at capture time). `verify(interpret_check)` defaults to frontmost-window when no region is declared. (2026-05-05)
 
 **Still parked:**
-- (b) **Per-app AX-based canvas detection:** new AX rules like `photoshop_canvas_bounds` that return the document area's frame rect by traversing the AX tree. More involved; some apps (Photoshop) hide the canvas from AX entirely, so this would have to deduce by subtracting toolbars/panels from the window rect.
-- (c) **Shortcut-declared static regions:** `verification.region: {x, y, width, height}` or `{relative_to: "window", ...}` on a per-shortcut basis. Brittle across window sizes and DPI; precise when authored carefully.
+- (b) **Per-app AX-based canvas detection:** new AX rules like `photoshop_canvas_bounds` that return the document area's frame rect by traversing the AX tree. Some apps (Photoshop) hide the canvas from AX entirely, so this would have to deduce by subtracting toolbars/panels from the window rect.
 
-**Trigger to pick up the rest:** When the frontmost-window shorthand isn't tight enough — e.g., for apps with persistent floating panels that change between before/after captures, or when the explorer-agent's vision-model spend becomes a real bottleneck.
+**Trigger to pick up (b):** When a shortcut needs a smaller-than-window capture and either the absolute or relative-to-window form is too brittle in practice (e.g., per-user Photoshop layouts where panels move).
 
 **Note on numbering:** This item appends at #16 rather than slotting in by priority because earlier items (parking-lot 2, 4, 5, 6, 7, 8, 12, 13) are referenced by stable number elsewhere in code, change-log, and docs. Renumbering would invalidate those references. The preamble's "renumber the list" guidance pre-dates those references; treat numbers as stable IDs going forward.
