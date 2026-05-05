@@ -11,7 +11,7 @@ Numbers are stable IDs (referenced by code, change-log, and docs). Items don't m
 | 1  | Workflow plurality                                    | Parked                       |
 | 2  | Website UI / UX design                                | Implemented (2026-05-03)     |
 | 3  | Sensitive action gating                               | Implemented (2026-05-04)     |
-| 4  | Cross-skill composition contracts                     | Partially implemented (2026-05-03) |
+| 4  | Cross-skill composition contracts                     | Implemented (2026-05-05)     |
 | 5  | screenshot_diff semantic refinements                  | Partially implemented (2026-05-04) |
 | 6  | Bad skills / prompt injection                         | Partially implemented (2026-05-02) |
 | 7  | Nixpacks injects secrets at build time                | Parked                       |
@@ -61,17 +61,19 @@ Numbers are stable IDs (referenced by code, change-log, and docs). Items don't m
 
 ---
 
-## 4. Cross-skill composition contracts (PARTIALLY IMPLEMENTED 2026-05-03)
+## 4. Cross-skill composition contracts (IMPLEMENTED 2026-05-05)
 
-**What:** When the user asks "increase brightness, add a dog, crop the photo," the agent chains three shortcuts. There's no formal contract for how shortcut outputs feed into shortcut inputs (e.g., "this shortcut produces a selection region that the next one consumes").
+**What:** When the user asks "increase brightness, add a dog, crop the photo," the agent chains shortcuts. The contract for how outputs feed into downstream inputs needs to be expressible AND enforceable at runtime.
 
-**Status:** Phase 7a (2026-05-03) activates the minimum viable schema surface for composition: optional `produces: { type, key }` on a shortcut, optional `consumes: { from_id, key }` on a parameter. The chat LLM remains responsible for actually wiring outputs to inputs across a chain — the schema just gives it the hooks. Type-checking the chain, runtime validation that `from_id` resolves to a recently-executed shortcut, and any kind of typed-port system stay parked.
+**Status:** Both halves done.
 
-**Why partially now:** The Phase 7b headline demo ("crop to the red girl, make the dress green, export as PNG") is a chain by construction. Without `produces`/`consumes`, the registry has no way to record that the crop step emits a selection region the export step might consume. With them, the chat LLM has a structured cue and contributor authorship has a place to express intent. See `docs/design-rationale.md` § "Why the Phase 7a schema extensions are universal infrastructure" for the framing.
+- (2026-05-03) Schema surface: optional `produces: {type, key}` on a shortcut, optional `consumes: {from_id, key}` on a parameter. Contributors can declare composition intent.
+- (2026-05-05) Runtime enforcement: `registry_chain_state` MCP tool with `set` / `get` / `list` operations. The use-skill calls `set` after each shortcut's verify passes (step 10) and `get` when resolving a downstream parameter that declares `consumes` (step 7). `get` throws on missing producer or type mismatch — the agent recovers by running the producer first, or by surfacing the broken chain to the user. Storage is process-local (one MCP process per chat session); chains spanning MCP restarts re-derive their state.
 
-**Trigger to fully activate:** When users chain 3+ shortcuts and we see real failures in the seam between them (the chat LLM loses context, the wrong selection survives, a parameter is silently dropped). Or when a contributor wants to declare a typed-port contract that the harness should validate at runtime.
-
-**Placeholder behavior:** Shortcuts MAY declare `produces`. Parameters MAY declare `consumes`. The MCP does not enforce or validate the linkage today. The chat LLM is the interpreter; if it ignores the fields, behavior is unchanged. Future: type checking, runtime resolution of `from_id`, possibly a `chain_state` registry tool the LLM can read between steps.
+**Still parked:**
+- Cross-app composition (the ledger keys by `(shortcut_id, key)` without app-scoping; contributors should keep keys distinct enough to avoid collision until app-scoping is added).
+- Cross-session persistence (a chain that survives MCP restart). Tied to the explore-session persistence model; revisit when contributors hit it.
+- A registry_execute consolidation tool that runs a shortcut end-to-end (open → execute → verify → set produces) atomically, removing the need for the LLM to orchestrate steps 6–11 per shortcut. Adds value for chained operations but the protocol-level approach works without it.
 
 ---
 

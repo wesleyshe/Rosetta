@@ -99,7 +99,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["type", "key"],
-      "description": "Parking-lot item 4 (PARTIALLY ACTIVATED 2026-05-03). Optional. Declares that this shortcut emits a named value downstream shortcuts may consume via parameter.consumes. Schema-only in v0; runtime resolution is the chat LLM's responsibility. Type-checking and harness-side validation stay parked.",
+      "description": "Parking-lot item 4 (IMPLEMENTED 2026-05-05). Declares that this shortcut emits a named value downstream shortcuts may consume via parameter.consumes. The use-skill calls registry.chain_state({op: \"set\", shortcut_id, key, value, type}) after verify passes; downstream shortcuts read the value with op:\"get\". The MCP enforces type matching at get-time.",
       "properties": {
         "type": {
           "type": "string",
@@ -153,7 +153,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["from_id", "key"],
-      "description": "Parking-lot item 4 (PARTIALLY ACTIVATED 2026-05-03). Optional. Declares that this parameter's value should come from a previously-executed shortcut's `produces` output. Schema-only in v0; the chat LLM is the interpreter. Runtime resolution of from_id and type-checking against the producer's `produces.type` stay parked.",
+      "description": "Parking-lot item 4 (IMPLEMENTED 2026-05-05). Declares that this parameter's value should come from a previously-executed shortcut's `produces` output. The use-skill resolves this in step 7 via registry.chain_state({op: \"get\", from_id, key, expected_type}); the call throws if the producer hasn't run or its produces.type doesn't match the consumer's expectation.",
       "properties": {
         "from_id": {
           "type": "string",

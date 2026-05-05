@@ -19,42 +19,44 @@ task on a desktop application or website, follow this protocol:
    destructive action explicitly (e.g. "flatten the image and save it as
    cat.png"), treat that as consent and proceed without re-asking.
 6. Open the app via `os.action({ type: "open_app", ... })` if it isn't already. If the user's request names a specific window of a multi-window app ("the project-foo VS Code window"), call `os.list_windows({ app_id })` to enumerate windows and then `os.action({ type: "focus_window", match: "title_contains", value: "project-foo" })` to bring it to the front before sending keystrokes.
-7. Execute the chosen shortcut's actions in order via `os.action(...)`.
-8. After the actions, run the shortcut's `verification` spec via `verify(...)`.
+7. **Resolve `consumes` parameters first.** If any of the chosen shortcut's parameters declare `consumes: {from_id, key}`, fill them by calling `registry.chain_state({op: "get", from_id, key, expected_type})` BEFORE executing actions. The call throws if the producing shortcut hasn't run yet — recover by running the producer first (look it up in the registry, execute, verify, then set its produces value as in step 9). Treat the returned `value` as the parameter's runtime value; substitute it into action templates the same way you would a user-supplied parameter.
+8. Execute the chosen shortcut's actions in order via `os.action(...)`.
+9. After the actions, run the shortcut's `verification` spec via `verify(...)`.
    Handle the result based on its shape:
-   - 8a. If `passed: true`, treat the shortcut as successful and continue to
-     step 9.
-   - 8b. If `passed: null` with `error_class: "agent_must_judge"`
+   - 9a. If `passed: true`, treat the shortcut as successful and continue to
+     step 10.
+   - 9b. If `passed: null` with `error_class: "agent_must_judge"`
      (interpret_check verifications), the result includes an attached
      screenshot image and a yes/no question. Look at the image with your
      native vision. Answer the question. If your answer matches the
      `expected` value (typically "yes"), treat the shortcut as successful.
-     If not, set `error_class: "interpret_mismatch"` for step 9 and proceed
-     to step 10.
-   - 8c. **AX-rule fallback (v0).** If `passed: false` with
+     If not, set `error_class: "interpret_mismatch"` for step 10 and
+     proceed to step 11.
+   - 9c. **AX-rule fallback (v0).** If `passed: false` with
      `error_class: "ax_rule_not_implemented"`, the rule is unimplemented on
      this platform; this is NOT a real verification failure. Inline, do not
-     escalate to step 10: call `os.screenshot()` (the result includes the
+     escalate to step 11: call `os.screenshot()` (the result includes the
      screenshot image itself via the multimodal channel). Look at it and
      answer a yes/no question synthesized from the shortcut's `intent`
      (e.g. "Looking at this screen, has [intent] just happened?"). If yes,
      treat as successful; if no, treat as a verification failure
-     (`error_class: "interpret_mismatch"`) and proceed to step 10.
-   - 8d. Any other `passed: false` outcome (e.g. `verification_mismatch`,
-     `file_not_found`, etc.) is a real failure, go to step 10.
-9. Immediately call `registry.report_execution` with the verification result,
-   including pass/fail, error class on fail, app version, and platform. Do this
-   regardless of outcome. When the 8b judgment ran, report success based on
-   your yes/no answer; if no, set `error_class: "interpret_mismatch"`. When
-   the 8c fallback ran, report success based on the yes/no answer; if it
-   answered no, set `error_class: "interpret_mismatch"`. Reliability scores
-   in the registry depend on this feedback loop. No GitHub authentication is
-   required.
-10. If verification fails, follow the workflow's `failure_recovery` list:
+     (`error_class: "interpret_mismatch"`) and proceed to step 11.
+   - 9d. Any other `passed: false` outcome (e.g. `verification_mismatch`,
+     `file_not_found`, etc.) is a real failure, go to step 11.
+10. **Record `produces` outputs** if the shortcut declared any AND verification passed. For each entry in the shortcut's `produces` block, call `registry.chain_state({op: "set", shortcut_id, key, value, type})`. The `value` is whatever the shortcut emitted (e.g. a selection rect computed from the actions, a file path that was saved). Downstream shortcuts that declare `consumes` will read this in step 7. Skip this when verification failed — incomplete state pollutes the chain.
+11. Immediately call `registry.report_execution` with the verification result,
+    including pass/fail, error class on fail, app version, and platform. Do this
+    regardless of outcome. When the 9b judgment ran, report success based on
+    your yes/no answer; if no, set `error_class: "interpret_mismatch"`. When
+    the 9c fallback ran, report success based on the yes/no answer; if it
+    answered no, set `error_class: "interpret_mismatch"`. Reliability scores
+    in the registry depend on this feedback loop. No GitHub authentication is
+    required.
+12. If verification fails, follow the workflow's `failure_recovery` list:
     first retry once (and report that attempt too), then try the next-ranked
     shortcut, then attempt vision-based discovery using `os.screenshot()` +
     reasoning, then surface the failure to the user with a clear question.
-11. Report what you did and the verification result back to the user.
+13. Report what you did and the verification result back to the user.
 
 Never invent shortcuts not in the registry. If no shortcut matches, say so and
 suggest the user run the explore skill first.

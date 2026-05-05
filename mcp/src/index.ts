@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // rosetta-mcp entry point.
 //
-// Fifteen tools, all wired in:
+// Sixteen tools, all wired in:
 //   Registry:          registry_list_apps, registry_lookup,
-//                      registry_report_execution, registry_submit
+//                      registry_report_execution, registry_submit,
+//                      registry_chain_state
 //   App detection:     os_app_info, os_list_windows
 //   Computer control:  os_screenshot, os_action, os_read_ax_tree
 //   Verification:      verify, interpret
@@ -23,6 +24,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 
 import { listApps, lookup, reportExecution, submitSpec } from "./registry.js";
+import { chainSet, chainGet, chainList } from "./chain.js";
 import {
   appInfo,
   screenshot,
@@ -139,6 +141,35 @@ const tools = [
         },
       },
       required: ["shortcut_id", "app_id", "success", "app_version"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "registry_chain_state",
+    description:
+      "Process-local ledger for cross-shortcut composition. Use after a shortcut declares `produces: {type, key}` and a downstream shortcut's parameter declares `consumes: {from_id, key}`. Three operations: `set` records a producing shortcut's output (call after the shortcut's verify passes, once per entry in its produces block); `get` fetches a recorded value to fill a consuming parameter (throws if the producer hasn't recorded the key yet, or if expected_type doesn't match the recorded type); `list` returns all recorded entries for diagnostics. State lives only for the MCP process lifetime — chains spanning MCP restarts have to re-derive their state. (Conceptually `registry.chain_state`.)",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        op: {
+          type: "string",
+          enum: ["set", "get", "list"],
+          description: "Operation to perform.",
+        },
+        shortcut_id: { type: "string", description: "For op=set: the producing shortcut's id." },
+        from_id: { type: "string", description: "For op=get: the producing shortcut's id." },
+        key: { type: "string", description: "For op=set / op=get: the produces.key being recorded or fetched." },
+        value: { description: "For op=set: the value to record. Any JSON-serializable shape." },
+        type: {
+          type: "string",
+          description: "For op=set: free-text type tag matching the producing shortcut's produces.type.",
+        },
+        expected_type: {
+          type: "string",
+          description: "For op=get: optional. When set, the call throws if the recorded type differs.",
+        },
+      },
+      required: ["op"],
       additionalProperties: false,
     },
   },
@@ -475,6 +506,28 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               ? args.platform
               : undefined,
         });
+        break;
+      }
+      case "registry_chain_state": {
+        const op = args.op as "set" | "get" | "list" | undefined;
+        if (op === "set") {
+          result = chainSet({
+            shortcut_id: String(args.shortcut_id ?? ""),
+            key: String(args.key ?? ""),
+            value: args.value,
+            type: String(args.type ?? ""),
+          });
+        } else if (op === "get") {
+          result = chainGet({
+            from_id: String(args.from_id ?? ""),
+            key: String(args.key ?? ""),
+            expected_type: typeof args.expected_type === "string" ? args.expected_type : undefined,
+          });
+        } else if (op === "list") {
+          result = { ok: true, entries: chainList() };
+        } else {
+          throw new Error(`registry_chain_state: unknown op "${op}". Expected "set" | "get" | "list".`);
+        }
         break;
       }
       case "os_app_info": {
