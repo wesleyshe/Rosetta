@@ -27,6 +27,7 @@ export type VerificationSpec =
       type: "screenshot_diff";
       region?: { x: number; y: number; width: number; height: number };
       max_pixel_diff_ratio?: number;
+      min_pixel_diff_ratio?: number;
     }
   | {
       type: "file_check";
@@ -72,6 +73,7 @@ export interface VerificationResult {
     | "content_mismatch"
     | "value_mismatch"
     | "screenshot_changed_too_much"
+    | "screenshot_changed_too_little"
     | "interpret_mismatch"
     | "interpret_failed"
     | "agent_must_judge"
@@ -363,17 +365,32 @@ async function verifyScreenshotDiff(
   // and inflate the false-positive rate.
   const after = await screenshot({ region: spec.region, format: "png" });
   const ratio = approximateDiffRatio(before.base64, after.base64);
-  const max = spec.max_pixel_diff_ratio ?? 0.02;
+  const min = spec.min_pixel_diff_ratio ?? 0;
+  // If the spec sets a min (inverted-direction "something changed" check),
+  // don't impose the default upper bound; the contributor must declare a
+  // max explicitly when they want both edges constrained.
+  const max = spec.max_pixel_diff_ratio ?? (spec.min_pixel_diff_ratio != null ? 1 : 0.02);
+
+  let passed = true;
+  let error_class: VerificationResult["error_class"];
+  if (ratio < min) {
+    passed = false;
+    error_class = "screenshot_changed_too_little";
+  } else if (ratio > max) {
+    passed = false;
+    error_class = "screenshot_changed_too_much";
+  }
 
   return {
-    passed: ratio <= max,
-    error_class: ratio > max ? "screenshot_changed_too_much" : undefined,
+    passed,
+    error_class,
     observation: {
       diff_ratio: ratio,
+      min_required: min,
       max_allowed: max,
       before_path: before.path,
       after_path: after.path,
-      note: "v0 uses byte-level approximation, not true pixel diff. Proper PNG-decoded pixel comparison is parking-lot 5-adjacent (Phase 7). For visible-toggle verifications use interpret_check.",
+      note: "v0 uses byte-level approximation, not true pixel diff. Proper PNG-decoded pixel comparison is still deferred (parking-lot 5). For visible-toggle verifications, prefer min_pixel_diff_ratio over interpret_check now that the inverse direction is supported.",
     },
   };
 }

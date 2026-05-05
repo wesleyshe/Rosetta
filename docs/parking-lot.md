@@ -56,23 +56,18 @@ Deferred items, **ranked by priority — top = highest priority**. The first ite
 
 ---
 
-## 5. screenshot_diff semantic is one-directional
+## 5. screenshot_diff semantic refinements (PARTIALLY ACTIVATED 2026-05-04)
 
-**What:** The `screenshot_diff` verification type currently expresses only `max_pixel_diff_ratio` — "verify nothing changed beyond N% of pixels." The inverse direction ("verify something DID change") and region-aware change assertions ("verify the sidebar region changed but the editor region did not") cannot be expressed.
+**What:** The `screenshot_diff` verification type originally expressed only `max_pixel_diff_ratio` ("verify nothing changed beyond N% of pixels"). The inverse direction ("verify something DID change"), region-aware assertions, and a true PNG-decoded pixel diff were all parked.
 
-**Why deferred:** Phase 1 doesn't have a concrete `verify()` implementation yet, so designing the right schema extension is premature. The seed shortcuts that needed an inverse-direction check (`toggle-zen-mode`, `format-current-file`) use `interpret_check` instead, which delegates to a vision model.
+**Status:** Partial activation. The inverse direction landed: `min_pixel_diff_ratio` is now an optional field (default 0). Both bounds may coexist for "verify a noticeable but bounded change." The verifier returns `screenshot_changed_too_little` when `ratio < min` and `screenshot_changed_too_much` when `ratio > max`, mirror-symmetric. Setting `min` removes the implicit upper-bound default — `max` defaults to 1 in that case.
 
-**Trigger to pick up:** During Phase 4, when `verify()` is being implemented and there's real usage to inform the design. Or when a contributor submits a shortcut where `interpret_check` feels like the wrong tool and `screenshot_diff` with new semantics would fit cleanly.
+**Still parked:**
+- True PNG-decoded pixel diff. The implementation in `mcp/src/verify.ts` (`approximateDiffRatio`) is byte-level: PNGs of different byte length report ratio 1.0; otherwise ratio is the fraction of bytes that differ at corresponding offsets. Accurate enough for "did anything change" but produces false positives for fine-grained "exactly N% changed" tests.
+- Region-aware assertions: a `regions: [...]` array where each region has its own expected change behavior.
+- Reference-image hash matching (`direction: "exact_match"`).
 
-**Placeholder behavior:** Use `interpret_check` for "verify a visible toggle happened" cases. `screenshot_diff` in v0 is functionally limited to "verify nothing visually changed."
-
-**Options to consider when picked up:**
-- Add `min_pixel_diff_ratio` (the inverse of the current field): "verify at least N% of pixels changed."
-- Add a `direction` enum: `"no_change" | "any_change" | "exact_match"` against a reference image hash.
-- Add region-aware assertions: a `regions: [...]` array where each region has its own expected change behavior.
-- Drop `screenshot_diff` entirely if `interpret_check` turns out to cover the same use cases more reliably in practice.
-
-**v0 implementation note (added 2026-05-03):** The Phase 4 implementation uses a byte-level approximation in `mcp/src/verify.ts` (`verifyScreenshotDiff` / `approximateDiffRatio`), NOT a true PNG-decoded pixel diff. PNGs of different byte length are reported as 100% different; otherwise the ratio is the fraction of bytes that differ at corresponding offsets. Acceptable in v0 because no seed shortcut uses `screenshot_diff`. Proper pixel-decoded comparison is part of this item's scope when picked up in Phase 7 or later.
+**Trigger to pick those up:** When a contributor submits a `screenshot_diff` shortcut and the byte-level approximation produces false positives in real usage, or when a real shortcut requires per-region assertions that the single-region surface can't express.
 
 ---
 

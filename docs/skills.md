@@ -110,7 +110,7 @@ Verification is what turns a sequence of actions into a checkable claim. Pick th
 | -------------------- | --------------------------------------------------------------------- | ---------------------------------------------------------------- |
 | `ax_tree_assertion`  | Action puts a known widget on screen (modal, palette, focus change). | `{ type, rule, value? }` — `rule` is a named predicate `verify()` recognizes. |
 | `dom_assertion`      | Web-app contexts.                                                     | `{ type, selector, value? }`                                     |
-| `screenshot_diff`    | Action should (or should NOT) cause visible change in a region.       | `{ type, region?, max_pixel_diff_ratio? }`                       |
+| `screenshot_diff`    | Action should (or should NOT) cause visible change in a region.       | `{ type, region?, max_pixel_diff_ratio?, min_pixel_diff_ratio? }` |
 | `file_check`         | Action persists state to disk.                                        | `{ type, path, exists?, hash?, content_contains? }`              |
 | `value_compare`      | Expected post-state is computable from inputs.                        | `{ type, left, right, comparator? }`                             |
 | `interpret_check`    | Nothing else fits — fall back to asking a vision model.               | `{ type, question, expected }`                                   |
@@ -125,12 +125,16 @@ Each shortcut must declare one verification. Pick the type that most reliably pr
   - **Current-state assertion**: rule names like `command_palette_visible` or `active_editor_filename_contains`. `verify()` checks the post-action AX tree against the rule once.
   - **Stateful (toggle / change) assertion**: rule names ending in `_toggled` or `_changed` (e.g. `sidebar_visibility_toggled`). `verify()` must capture an AX snapshot BEFORE the action, run the action, then snapshot AFTER and compare. Use stateful rules only when the post-state alone is ambiguous (e.g., a toggle whose direction depends on prior state).
 - **`file_check`** — the shortcut produces a filesystem effect. Cleanest for save / export / write operations. Three flavors: `exists` (file present after action), `content_contains` (post-action content includes a string), `hash` (post-action sha256 matches). The `path` may use `{parameter}` placeholders.
-- **`screenshot_diff`** — the shortcut visibly changes a region but the change isn't well-captured by AX. Currently expresses only `max_pixel_diff_ratio` ("verify nothing changed beyond N% of pixels"). The inverse direction ("verify something DID change") is parking-lot item 5; until then, use `interpret_check` for "verify a visible toggle happened."
+- **`screenshot_diff`** — the shortcut visibly changes (or should NOT change) a region, and AX can't capture the effect. Two bounds available:
+  - `max_pixel_diff_ratio` (default 0.02): pass requires ratio ≤ this. "Verify nothing changed."
+  - `min_pixel_diff_ratio` (default 0): pass requires ratio ≥ this. "Verify something changed." Inverse-direction toggles (sidebar visibility, zen mode) fit here.
+  - Both can coexist (e.g. `min: 0.05, max: 0.30`): "verify a noticeable but bounded change."
+  - Setting only `min` removes the implicit upper bound — max defaults to 1 in that case.
 - **`value_compare`** — compare two values directly (e.g., a captured AX-node value against an expected string). String values support `{parameter}` placeholders.
 - **`interpret_check`** — pass post-action media (screenshot, audio) to a vision/audio model with a question; check the answer against an expected fragment. Use when the visible effect is real but AX doesn't capture it (e.g., zen mode hides chrome visually while the AX-tree presence barely changes), or when the change is too subtle/contextual for a deterministic rule.
 - **`dom_assertion`** — for browser / web targets. Out of scope for the VS Code seed; will appear in browser-app shortcuts later.
 
-Rule of thumb: prefer `ax_tree_assertion` or `file_check` when either fits. Fall back to `interpret_check` only when AX and filesystem can't capture the effect. `screenshot_diff` in v0 is best avoided unless the `max_pixel_diff_ratio` semantic actually matches the test you want.
+Rule of thumb: prefer `ax_tree_assertion` or `file_check` when either fits. `screenshot_diff` is the right pick when AX can't capture a clear visible toggle. Fall back to `interpret_check` only when neither AX, filesystem, nor a pixel diff fits — interpret_check is more expensive (vision-model call) and less deterministic. Note: `screenshot_diff` in v0 is a byte-level approximation, not a true PNG-decoded pixel diff (parking-lot 5 still parks the proper decoder); it's accurate enough for "did anything change" but can produce false positives for "exactly N% changed."
 
 ## Method choice
 

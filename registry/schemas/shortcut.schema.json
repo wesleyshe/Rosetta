@@ -363,6 +363,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["type"],
+      "description": "Compare a pre-action screenshot (passed via observation.before) against a post-action capture. Default behavior (neither bound set) verifies nothing changed beyond max_pixel_diff_ratio (0.02). Setting min_pixel_diff_ratio inverts the assertion to 'verify at least N of pixels changed' — useful for toggles that produce a visible effect AX can't catch. Both bounds may coexist (e.g. min=0.05, max=0.30 for 'something visible changed but not the whole frame').",
       "properties": {
         "type": { "const": "screenshot_diff" },
         "region": {
@@ -380,7 +381,14 @@
           "type": "number",
           "minimum": 0,
           "maximum": 1,
-          "default": 0.02
+          "default": 0.02,
+          "description": "Pass requires ratio ≤ this value. Default 0.02 unless min_pixel_diff_ratio is set, in which case max defaults to 1 (no upper bound)."
+        },
+        "min_pixel_diff_ratio": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Pass requires ratio ≥ this value. Use to verify a visible toggle happened. Default 0 (no lower bound)."
         }
       }
     },

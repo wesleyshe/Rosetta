@@ -323,7 +323,7 @@ All tools live under one MCP server. TypeScript, packaged for `npx @rosetta-skil
 - `verify(spec, observation?)` — discriminated union of verification types:
   - `ax_tree_assertion` — match against an AX tree query
   - `dom_assertion` — match against a DOM selector + value
-  - `screenshot_diff` — capture before/after, compare regions
+  - `screenshot_diff` — capture before/after, compare regions. Optional `max_pixel_diff_ratio` (upper bound, default 0.02) and `min_pixel_diff_ratio` (lower bound, default 0); set `min` for the "verify something changed" inverse direction. Both can coexist for bounded-change assertions.
   - `file_check` — file exists, hash matches, content matches
   - `value_compare` — compare two strings/numbers
   - `interpret_check` — capture a screenshot and return `passed: null` with `error_class: "agent_must_judge"` plus the image attached as MCP image content; the host agent answers the yes/no question with its own native vision. The standalone `interpret` tool remains available as a niche escape hatch for explicit server-side LLM calls but is no longer used on the use path.
