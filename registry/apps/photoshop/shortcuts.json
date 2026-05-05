@@ -59,9 +59,9 @@
         { "type": "key", "key": "enter" }
       ],
       "verification": {
-        "type": "file_check",
-        "path": "{path}",
-        "exists": true
+        "type": "interpret_check",
+        "question": "Looking at the screen and confirming the file at {path} is a valid JPG image: does Photoshop's Save a Copy flow appear to have completed successfully (no error dialog, no format-mismatch warning) AND would the saved file open as a JPG (i.e. the Format dropdown was JPG when Save was pressed)?",
+        "expected": "yes"
       },
       "metadata": {
         "contributor_id": "seed",
@@ -89,9 +89,9 @@
         { "type": "key", "key": "enter" }
       ],
       "verification": {
-        "type": "file_check",
-        "path": "{path}",
-        "exists": true
+        "type": "interpret_check",
+        "question": "Looking at the screen: did Photoshop's Save a Copy flow complete successfully (no error dialog, no format-mismatch warning) AND was the Format dropdown set to PNG when Save was pressed (i.e. the saved file at {path} would open as a real PNG, not a JPG with a .png extension)?",
+        "expected": "yes"
       },
       "metadata": {
         "contributor_id": "seed",
@@ -219,11 +219,12 @@
         { "type": "key", "key": "tab" },
         { "type": "key_combo", "keys": { "macos": "cmd+a" } },
         { "type": "type_text", "text": "{height}" },
+        { "type": "key", "key": "enter" },
         { "type": "key", "key": "enter" }
       ],
       "verification": {
         "type": "interpret_check",
-        "question": "Has the canvas been cropped to approximately {width}×{height}, centered on the original?",
+        "question": "Has the canvas been cropped to approximately {width}×{height}, centered on the original? Note: when shrinking the canvas, Photoshop shows a 'Some clipping will occur' confirmation dialog. The actions include a second Enter to dismiss it. If the dialog is still visible on screen instead of the cropped canvas, answer no — the agent should retry with another Enter via os.action.",
         "expected": "yes"
       },
       "metadata": {

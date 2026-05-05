@@ -405,6 +405,7 @@ const tools = [
                 "file_check",
                 "value_compare",
                 "interpret_check",
+                "wait_for_idle",
               ],
             },
           },
@@ -733,7 +734,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 const transport = new StdioServerTransport();
 await server.connect(transport);
 
-// stdout is reserved for MCP protocol; log to stderr.
-process.stderr.write(
-  `rosetta-mcp ready. install_id=${installRecord.install_id}\n`
-);
+// stdout is reserved for MCP protocol; log to stderr. Don't print install_id —
+// it's a stable anonymous fingerprint and the host (e.g. Claude Desktop) may
+// capture stderr to logs the user can't audit. install_id lives in
+// <config_dir>/install_id.json on disk; that's the right place to read it.
+void installRecord;
+process.stderr.write(`rosetta-mcp ready.\n`);

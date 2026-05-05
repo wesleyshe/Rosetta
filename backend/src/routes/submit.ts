@@ -165,7 +165,16 @@ export async function submitRoute(app: FastifyInstance): Promise<void> {
         reviewer_reason: review.reason,
       });
     } catch (err) {
+      const e = err as { status?: number; message?: string };
       req.log.error({ err }, "github.submitShortcut failed");
+      // 422 = duplicate shortcut id; surface as a 409 to the contributor since
+      // the conflict is on the resource state (the shortcut id already exists).
+      if (e.status === 422) {
+        return reply.code(409).send({
+          error: "duplicate shortcut id",
+          detail: e.message?.slice(0, 300),
+        });
+      }
       return reply.code(502).send({
         error: "github write failed",
         detail: (err as Error).message.slice(0, 300),

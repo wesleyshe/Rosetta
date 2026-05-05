@@ -34,7 +34,4 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 
-# Cloudflare Worker
-.wrangler/
-.dev.vars
 pitch_deck_script.md

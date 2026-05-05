@@ -24,6 +24,17 @@ Numbers are stable IDs (referenced by code, change-log, and docs). Items don't m
 | 14 | Web chat client support                               | Parked                       |
 | 15 | Payment / contributor reward economy                  | Parked                       |
 | 16 | Smaller screenshots for vision-based verification     | Partially implemented (2026-05-04) |
+| 17 | Backend abuse defenses (kill switch, global rate limits, review-queue) | Parked       |
+| 18 | MCP wire-schema input narrowing (os_action, interpret) | Parked                      |
+| 19 | report.ts rate-limit transactional race               | Parked                       |
+| 20 | lookup.ts N+1 stat queries on wildcards               | Parked                       |
+| 21 | Submission audit row failure handling                 | Parked                       |
+| 22 | GitHub privacy-prefixed noreply email                 | Parked                       |
+| 23 | os.ts Windows/Linux stub error convention             | Parked                       |
+| 24 | Dead `*_toggled` AX-rule branches in verifyAx         | Parked                       |
+| 25 | chainList composite-key encoding                      | Parked                       |
+| 26 | app.html markdown subset                              | Parked — document, don't expand |
+| 27 | MCP tsconfig strictness flags                         | Parked                       |
 
 "Implemented" = the original deferral is fully resolved. "Partially implemented" = some sub-pieces shipped; the rest are documented under **Still parked** in that item's body. "Parked" = not started in v0.
 
@@ -261,3 +272,130 @@ The first half is the cutover baseline — it marks the initial migration as alr
 **Trigger to pick up (b):** When a shortcut needs a smaller-than-window capture and either the absolute or relative-to-window form is too brittle in practice (e.g., per-user Photoshop layouts where panels move).
 
 **Note on numbering:** This item appends at #16 rather than slotting in by priority because earlier items (parking-lot 2, 4, 5, 6, 7, 8, 12, 13) are referenced by stable number elsewhere in code, change-log, and docs. Renumbering would invalidate those references. The preamble's "renumber the list" guidance pre-dates those references; treat numbers as stable IDs going forward.
+
+---
+
+## 17. Backend abuse defenses (kill switch, global rate limits, review queue)
+
+**What:** The hosted backend on Railway has per-(`install_id`, `shortcut_id`) rate limits on `/report-execution` and per-OAuth-user authorization on `/submit`, but no global caps. A malicious actor minting many `install_id`s hits no aggregate cap; a hijacked OAuth token can spam `/submit` with garbage that auto-merges into the registry. There's also no fast off-switch other than redeploying.
+
+**Why deferred:** v0 traffic is one user; the abuse vectors are theoretical until the registry has external interest. The cost of the kill switch is small (one env var); the cost of a global rate limit ring or a review-queue mode is non-trivial and premature for one-user-day-one.
+
+**Trigger to pick up:** First instance of unexpected `/submit` or `/report-execution` traffic, or any signal of inbound contributor adoption.
+
+**Placeholder behavior:** Operator manually monitors via Railway dashboard. If abuse appears, the response is to redeploy with `/submit` route disabled. No moderation tooling.
+
+**When activated:**
+- Add `ROSETTA_SUBMIT_DISABLED=1` env var that returns 503 from `/submit` without redeploying.
+- Add a global submission counter (per-day cap across all contributors) and a rolling per-contributor cap.
+- For first-N submissions per `Contributor`, mark as `pending_review` rather than auto-merging; require operator approval via a tiny admin endpoint.
+
+---
+
+## 18. MCP wire-schema input narrowing (os_action, interpret)
+
+**What:** `mcp/src/index.ts` dispatches `os_action(args as unknown as ActionSpec)` and `interpret(args as unknown as InterpretInput)` without narrowing on the discriminator. The wire schema declares `type` enums but leaves `target`, `keys`, `path`, etc. as opaque. Malformed shapes (e.g., `click` with `target: {x: "foo"}`) reach the dispatch layer and surface as osascript errors rather than clean validation failures.
+
+**Why deferred:** Agents in practice generate well-formed args; the validation is defensive against pathological cases that don't fire in production. Tightening here is plumbing, not user-facing capability.
+
+**Trigger to pick up:** Any field report where an agent submits malformed args and the resulting error is hard to diagnose.
+
+**Placeholder behavior:** osascript errors propagate up with context that's usually sufficient to debug.
+
+---
+
+## 19. report.ts rate-limit transactional race
+
+**What:** `backend/src/routes/report.ts:78-91` runs `prisma.execution.count` outside the transaction that creates the new row. Concurrent reports from the same `install_id` + `shortcut_id` on the same day can each pass the limit and all succeed. v0 traffic doesn't trigger this.
+
+**Trigger to pick up:** First instance of /report-execution traffic from concurrent installs of the same install_id (which itself shouldn't happen — install_id is per-machine).
+
+**Placeholder behavior:** The race exists; in practice nothing exploits it.
+
+**When activated:** Move the count into the transaction, or rely on a unique-constraint approach (composite unique on `install_id+shortcut_id+date_bucket+nonce`).
+
+---
+
+## 20. lookup.ts N+1 stat queries on wildcards
+
+**What:** `backend/src/routes/lookup.ts:140-181` does `Promise.all(matched.map(async ...))` over the matched-shortcut set, spawning one `findUnique` per shortcut. For Photoshop's 42 shortcuts, that's 42 findUnique calls per wildcard request.
+
+**Why deferred:** No correctness issue; perf only. 42 small queries against a single Postgres on the same network is fast enough that it's invisible in v0.
+
+**Trigger to pick up:** Once total registry size exceeds ~500 shortcuts, or once /lookup p95 latency exceeds 200ms.
+
+**When activated:** Replace with one `findMany` using IN clauses on the `(shortcut_id, app_id, app_version, platform)` tuple set, then build a Map for the join.
+
+---
+
+## 21. Submission audit row failure handling
+
+**What:** `backend/src/routes/submit.ts:175-186` runs `prisma.submission.create` AFTER `submitShortcut` (which auto-merged). If the DB write fails, the spec is in Git but no audit row exists. Reconcilable manually.
+
+**Trigger to pick up:** First instance of an audit-row write failure that creates contributor-attribution drift.
+
+**When activated:** Wrap in try/catch with an explicit log so the operator sees the divergence; don't 500 on the audit failure (the submission itself succeeded).
+
+---
+
+## 22. GitHub privacy-prefixed noreply email
+
+**What:** `backend/src/github.ts:175-176` uses `{username}@users.noreply.github.com`. GitHub's privacy-enabled form is `{user-id}+{username}@users.noreply.github.com`. For users with strict privacy, only the prefixed form attributes the commit to them.
+
+**Trigger to pick up:** First contributor reports their commit isn't attributed to their GitHub profile.
+
+**When activated:** Pull `user-id` from the GitHub `/user` response (already fetched in `oauth.ts:108-124`), persist on `Contributor`, use the prefixed form when committing.
+
+---
+
+## 23. os.ts Windows/Linux stub error convention
+
+**What:** `mcp/src/os.ts` Windows/Linux stubs signal failure differently: `screenshot()` and `listWindows()` throw, while `action()` returns `{ok: false, error}`. Two error-handling paths the agent has to maintain. None silently succeed.
+
+**Trigger to pick up:** When Windows or Linux support actually ships (currently a separate parking item via the signed-helper distribution problem).
+
+**When activated:** Pick one convention — either always throw with `platform_not_implemented`, or always return `{ok: false, error}`. Document at the top of `os.ts`.
+
+---
+
+## 24. Dead `*_toggled` AX-rule branches in verifyAx
+
+**What:** `mcp/src/verify.ts:210-240` handles `sidebar_visibility_toggled` and `terminal_panel_visibility_toggled`, which query `sidebar_visible` / `terminal_panel_visible` AX rules. Those underlying rules always return `ax_rule_not_implemented_in_v0` (per `mcp/src/os.ts:863-872`), so the post-toggle comparison branches are structurally unreachable today.
+
+**Trigger to pick up:** When the underlying AX probes are implemented, OR when we're sure the `interpret_check` path is the v0 verification primitive for these cases and want to simplify.
+
+**When activated:** Either implement the underlying AX probes or drop the toggled-rule branches with a clearer "interpret_check is the v0 path" message.
+
+---
+
+## 25. chainList composite-key encoding
+
+**What:** `mcp/src/chain.ts:38, 130` uses `ledgerKey = shortcut_id + " " + key` and `chainList` parses back by splitting on `" "` and taking the first two parts. Schema constrains both inputs to non-spaced patterns so this is structurally safe today, but a brittle encoding.
+
+**Trigger to pick up:** Any schema change that loosens input patterns to allow spaces.
+
+**When activated:** Store the tuple in the entry rather than parsing back from a flattened key.
+
+---
+
+## 26. app.html markdown subset
+
+**What:** `site/app.html:243-261` ships a hand-rolled `simpleMarkdown` that handles paragraphs, lists, headings, bold, and inline code. It does NOT handle tables, links, ordered lists, code fences, or blockquotes. Photoshop's `agent_primer` uses only the supported subset; future contributors will hit the limit.
+
+**Why deferred:** Adding a markdown library (marked, markdown-it) ships ~30 KB to every site page render. Not worth the bytes for v0.
+
+**Trigger to pick up:** First contributor whose `agent_primer` needs an unsupported feature AND can't reasonably reword.
+
+**Decision (2026-05-05 review):** keep the limited subset; document the supported features in `docs/skills.md` so contributors know the constraints upfront. Don't add a markdown lib.
+
+---
+
+## 27. MCP tsconfig strictness flags
+
+**What:** `mcp/tsconfig.json` lacks `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, and `noImplicitOverride`. `backend/tsconfig.json` has all three. The MCP is the layer that handles untrusted LLM-generated input; strictness here would catch more bugs than the same strictness on the backend.
+
+**Why deferred:** Adopting these flags requires 5-15 fixup edits across `mcp/src/`. Not pre-launch work.
+
+**Trigger to pick up:** When the MCP grows past current size (~8 source files) or when an LLM-generated input bug surfaces that strictness would have caught.
+
+**When activated:** Mirror backend's three flags into `mcp/tsconfig.json` and fix the resulting type errors.

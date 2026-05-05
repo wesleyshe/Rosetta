@@ -21,7 +21,8 @@ const ACTION_DEF_KEYS = [
   "typeTextAction",
   "clickAction",
   "menuAction",
-  "openAppAction"
+  "openAppAction",
+  "focusWindowAction"
 ];
 const PLACEHOLDER_RE = /\{([a-z][a-z0-9_]*)\}/g;
 

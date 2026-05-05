@@ -342,9 +342,9 @@
         }
       ],
       "verification": {
-        "type": "ax_tree_assertion",
-        "rule": "active_editor_filename_contains",
-        "value": ""
+        "type": "interpret_check",
+        "question": "Looking at the editor: did a duplicate of the previously-current line appear immediately below it, with the cursor now on the duplicate?",
+        "expected": "yes"
       },
       "metadata": {
         "contributor_id": "wesleyshe",

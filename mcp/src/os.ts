@@ -641,7 +641,13 @@ async function focusWindowMacos(
   // changing focus order across apps.
   let matcherBody: string;
   if (match === "index") {
-    const idx = typeof value === "number" ? Math.floor(value) + 1 : 1; // AppleScript is 1-based
+    if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || !Number.isInteger(value)) {
+      return {
+        ok: false,
+        error: `focus_window: match="index" requires \`value\` to be a non-negative integer; got ${JSON.stringify(value)}`,
+      };
+    }
+    const idx = value + 1; // AppleScript is 1-based
     matcherBody = `set targetWin to window ${idx}`;
   } else if (match === "title_equals") {
     const v = typeof value === "string" ? value : String(value);

@@ -159,7 +159,17 @@ async function appendShortcutOnce(octo: Octokit, args: AppendArgs): Promise<stri
     throw new Error(`expected file at ${args.path}; got ${"type" in r.data ? r.data.type : "directory"}`);
   }
   const decoded = Buffer.from(r.data.content, r.data.encoding as BufferEncoding).toString("utf8");
-  const parsed = JSON.parse(decoded) as { schema_version: number; app_id: string; shortcuts: unknown[] };
+  const parsed = JSON.parse(decoded) as { schema_version: number; app_id: string; shortcuts: { id?: unknown }[] };
+  if (parsed.shortcuts.some((s) => s.id === args.shortcut_id)) {
+    // Distinct from a stale-SHA 409 (which the wrapper retries once); use 422
+    // so the retry logic above re-throws cleanly. submit.ts surfaces this as
+    // a contributor-visible 422 reason.
+    const e = new Error(
+      `duplicate shortcut id "${args.shortcut_id}" already exists in ${args.app_id}/shortcuts.json — submissions cannot replace existing shortcuts`
+    ) as Error & { status: number };
+    e.status = 422;
+    throw e;
+  }
   parsed.shortcuts.push(args.new_shortcut);
   const updated = JSON.stringify(parsed, null, 2) + "\n";
 
