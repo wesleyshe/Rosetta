@@ -102,6 +102,12 @@ export async function lookup(
 
 // ---------- local-mode implementation ----------
 
+/** Highest registry schema major version this MCP build understands. Bump
+ *  when introducing breaking changes (parking-lot 13). The MCP refuses to
+ *  load shortcuts with schema_version above this and asks the user to
+ *  upgrade, rather than mis-executing under an old interpretation. */
+const SUPPORTED_SCHEMA_VERSION = 1;
+
 const STOPWORDS = new Set([
   "a", "an", "the", "to", "of", "for", "in", "on", "at", "by",
   "and", "or", "with", "is", "this", "that", "be", "as", "it"
@@ -163,6 +169,15 @@ function localLookup(
   } catch (e) {
     throw new Error(
       `registry.lookup: cannot read shortcuts for app "${app_id}" at ${root}/apps/${app_id}/shortcuts.json: ${(e as Error).message}`
+    );
+  }
+
+  if (typeof file.schema_version !== "number" || file.schema_version > SUPPORTED_SCHEMA_VERSION) {
+    throw new Error(
+      `registry.lookup: shortcuts.json for "${app_id}" declares schema_version ${file.schema_version}, ` +
+        `but this MCP build only understands up to schema_version ${SUPPORTED_SCHEMA_VERSION}. ` +
+        `Upgrade the MCP (rebuild from source: cd mcp && git pull && npm install && npm run build) ` +
+        `or pin to an older registry checkout.`
     );
   }
 

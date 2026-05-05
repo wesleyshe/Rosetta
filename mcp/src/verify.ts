@@ -13,6 +13,8 @@ import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
+import { PNG } from "pngjs";
+
 import { readAxTree, screenshot, type AxResult, type ScreenshotResult } from "./os.js";
 import { currentPlatform } from "./config.js";
 
@@ -361,10 +363,10 @@ async function verifyScreenshotDiff(
         "screenshot_diff requires observation.before to be a ScreenshotResult captured pre-action.",
     };
   }
-  // PNG for pixel-stable byte comparison; JPEG would re-encode every probe
-  // and inflate the false-positive rate.
+  // PNG so the decoder gets pixel-stable bytes; JPEG would re-encode every
+  // probe and inflate noise.
   const after = await screenshot({ region: spec.region, format: "png" });
-  const ratio = approximateDiffRatio(before.base64, after.base64);
+  const ratio = pixelDiffRatio(before.base64, after.base64);
   const min = spec.min_pixel_diff_ratio ?? 0;
   // If the spec sets a min (inverted-direction "something changed" check),
   // don't impose the default upper bound; the contributor must declare a
@@ -390,29 +392,44 @@ async function verifyScreenshotDiff(
       max_allowed: max,
       before_path: before.path,
       after_path: after.path,
-      note: "v0 uses byte-level approximation, not true pixel diff. Proper PNG-decoded pixel comparison is still deferred (parking-lot 5). For visible-toggle verifications, prefer min_pixel_diff_ratio over interpret_check now that the inverse direction is supported.",
     },
   };
 }
 
 /**
- * Crude byte-level approximation of pixel diff. PNGs of different sizes
- * report ratio = 1.0 (totally different). Otherwise, ratio is the fraction
- * of bytes that differ at corresponding offsets. Highly imprecise for true
- * pixel-level work — proper PNG decoding is deferred (see parking-lot 5 +
- * the Phase 7 polish substep). Acceptable v0 behavior because no seed
- * shortcut uses screenshot_diff.
+ * PNG-decoded pixel diff. Decodes both base64 PNGs to RGBA buffers via
+ * pngjs and counts pixels whose R, G, or B channels differ. Different-
+ * size images return 1.0 (totally different) without per-pixel work.
+ * Alpha is ignored because the macOS `screencapture` path produces fully
+ * opaque images.
+ *
+ * Decode failure (e.g. one buffer is not actually a PNG) returns 1.0
+ * rather than throwing — keeps the verifier path total even when an
+ * upstream caller mistakenly passed a JPEG observation.before.
  */
-function approximateDiffRatio(beforeBase64: string, afterBase64: string): number {
-  const a = Buffer.from(beforeBase64, "base64");
-  const b = Buffer.from(afterBase64, "base64");
-  if (a.length === 0 || b.length === 0) return 1;
-  if (a.length !== b.length) return 1;
-  let differing = 0;
-  for (let i = 0; i < a.length; i++) {
-    if (a[i] !== b[i]) differing++;
+function pixelDiffRatio(beforeBase64: string, afterBase64: string): number {
+  let a: { width: number; height: number; data: Buffer };
+  let b: { width: number; height: number; data: Buffer };
+  try {
+    a = PNG.sync.read(Buffer.from(beforeBase64, "base64"));
+    b = PNG.sync.read(Buffer.from(afterBase64, "base64"));
+  } catch {
+    return 1;
   }
-  return differing / a.length;
+  if (a.width !== b.width || a.height !== b.height) return 1;
+  const total = a.width * a.height;
+  if (total === 0) return 1;
+  let differing = 0;
+  for (let i = 0; i < a.data.length; i += 4) {
+    if (
+      a.data[i] !== b.data[i] ||
+      a.data[i + 1] !== b.data[i + 1] ||
+      a.data[i + 2] !== b.data[i + 2]
+    ) {
+      differing++;
+    }
+  }
+  return differing / total;
 }
 
 // ---------- interpret_check ----------

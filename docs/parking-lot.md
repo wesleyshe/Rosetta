@@ -17,10 +17,10 @@ Numbers are stable IDs (referenced by code, change-log, and docs). Items don't m
 | 7  | Nixpacks injects secrets at build time                | Parked                       |
 | 8  | Automated skill decay detection                       | Partially implemented (2026-05-02) |
 | 9  | Multi-window / multi-instance app handling            | Parked                       |
-| 10 | Adversarial app vendors                               | Parked                       |
-| 11 | Internationalization / locale variation               | Parked                       |
+| 10 | Adversarial app vendors                               | Resolved — no engineering action |
+| 11 | Internationalization / locale variation               | Partially implemented (2026-05-05) |
 | 12 | Graduate to Prisma migrations                         | Parked                       |
-| 13 | Skill schema versioning beyond major-version bumps    | Parked                       |
+| 13 | Skill schema versioning beyond major-version bumps    | Partially implemented (2026-05-05) |
 | 14 | Web chat client support                               | Parked                       |
 | 15 | Payment / contributor reward economy                  | Parked                       |
 | 16 | Smaller screenshots for vision-based verification     | Partially implemented (2026-05-04) |
@@ -75,18 +75,19 @@ Numbers are stable IDs (referenced by code, change-log, and docs). Items don't m
 
 ---
 
-## 5. screenshot_diff semantic refinements (PARTIALLY IMPLEMENTED 2026-05-04)
+## 5. screenshot_diff semantic refinements (PARTIALLY IMPLEMENTED 2026-05-04, expanded 2026-05-05)
 
-**What:** The `screenshot_diff` verification type originally expressed only `max_pixel_diff_ratio` ("verify nothing changed beyond N% of pixels"). The inverse direction ("verify something DID change"), region-aware assertions, and a true PNG-decoded pixel diff were all parked.
+**What:** The `screenshot_diff` verification type originally expressed only `max_pixel_diff_ratio` ("verify nothing changed beyond N% of pixels"). The inverse direction ("verify something DID change"), region-aware assertions, a true PNG-decoded pixel diff, and reference-image hash matching were all parked.
 
-**Status:** Partial activation. The inverse direction landed: `min_pixel_diff_ratio` is now an optional field (default 0). Both bounds may coexist for "verify a noticeable but bounded change." The verifier returns `screenshot_changed_too_little` when `ratio < min` and `screenshot_changed_too_much` when `ratio > max`, mirror-symmetric. Setting `min` removes the implicit upper-bound default — `max` defaults to 1 in that case.
+**Status (2026-05-04):** Inverse direction shipped. `min_pixel_diff_ratio` is an optional field (default 0). Both bounds may coexist. The verifier returns `screenshot_changed_too_little` when `ratio < min` and `screenshot_changed_too_much` when `ratio > max`, mirror-symmetric.
+
+**Status (2026-05-05):** True pixel diff shipped. `mcp/src/verify.ts` decodes both PNGs via `pngjs` and compares per-pixel R/G/B channels. Different-size images report 1.0; decode failure (non-PNG buffer) also reports 1.0 to keep the verifier total. Smoke against two back-to-back captures of an idle window: ratio ≈ 0.0004 (was 1.0 under the byte-level approximation), so the default `max: 0.02` no longer false-positives on real usage.
 
 **Still parked:**
-- True PNG-decoded pixel diff. The implementation in `mcp/src/verify.ts` (`approximateDiffRatio`) is byte-level: PNGs of different byte length report ratio 1.0; otherwise ratio is the fraction of bytes that differ at corresponding offsets. Accurate enough for "did anything change" but produces false positives for fine-grained "exactly N% changed" tests.
 - Region-aware assertions: a `regions: [...]` array where each region has its own expected change behavior.
 - Reference-image hash matching (`direction: "exact_match"`).
 
-**Trigger to pick those up:** When a contributor submits a `screenshot_diff` shortcut and the byte-level approximation produces false positives in real usage, or when a real shortcut requires per-region assertions that the single-region surface can't express.
+**Trigger to pick those up:** When a real shortcut needs per-region assertions, or when a contributor wants byte-stable expected-image comparisons.
 
 ---
 
@@ -152,27 +153,32 @@ Numbers are stable IDs (referenced by code, change-log, and docs). Items don't m
 
 ---
 
-## 10. Adversarial app vendors
+## 10. Adversarial app vendors (RESOLVED — no engineering action)
 
 **What:** Some app/site vendors actively detect and block automation (Google Flights, Amazon, ticketing sites). Skills against these targets may be brittle by design.
 
-**Why deferred:** This is a strategic question more than a technical one. We can't engineer around vendor hostility.
+**Resolution:** Closed without further work. This is a strategic and legal question, not an engineering one — Rosetta can't engineer around vendor hostility. The v0 mechanisms already cover what code can cover:
 
-**Trigger to pick up:** When the registry has skills for high-friction targets and we get takedown requests or detection-driven failures.
+- `meta.json` can declare `vendor_friendly: "friendly" | "unknown" | "hostile"` so contributors can flag known-adversarial targets.
+- Hostile-vendor shortcuts naturally degrade in `reliability_score` over time as detection breaks them — the verification-pass-rate filter handles this without per-vendor logic.
+- If a vendor sends a takedown for a specific app's shortcuts, the response is administrative (remove the app folder + index entry, optionally soft-ban contributor accounts), not an engineering change.
 
-**Placeholder behavior:** The registry doesn't restrict what apps can be added, but `meta.json` for an app can include a `vendor_friendly` flag (default `unknown`). Skills against unfriendly vendors will likely have low reliability scores, which is the natural feedback loop.
+No further code work is planned for this item.
 
 ---
 
-## 11. Internationalization / locale variation
+## 11. Internationalization / locale variation (PARTIALLY IMPLEMENTED 2026-05-05)
 
 **What:** Menu paths, app strings, and search keywords differ across locales. A shortcut that uses `menu: ["Image", "Adjustments", "Brightness/Contrast"]` won't work for a Japanese-language Photoshop install.
 
-**Why deferred:** v0 targets English-locale apps. Most early adopters will be on English.
+**Status:** Schema field is in. Each shortcut may declare an optional `locale` (BCP-47 form: `en`, `en-US`, `fr-FR`, `ja`); when absent, the shortcut inherits `meta.locale`. Contributors author locale variants by encoding the locale into the `id` (e.g. `open-file-fr`) since `id` uniqueness is enforced within an app.
 
-**Trigger to pick up:** First contribution from a non-English-locale user, or when targeting a non-English market.
+**Still parked:**
+- Hierarchical fallback at lookup time: `fr-CA` query should match `fr-CA` first, then `fr`, then `en`.
+- Lookup filtering by user-locale parameter: `/lookup?app_id=...&intent=...&locale=fr-FR` returns the locale-matched variant ranked above the default.
+- Validator support for cross-locale id collisions (e.g. warn if two shortcuts share an `intent` but only one declares `locale`).
 
-**Placeholder behavior:** `meta.json` has a `locale` field on each shortcut variant. Default `en`. Future: variants per locale, registry filters by user locale.
+**Trigger to pick up the rest:** First non-English-locale contribution, or when a contributor reports their locale variant getting outranked by the en default at lookup time.
 
 ---
 
@@ -190,15 +196,18 @@ Numbers are stable IDs (referenced by code, change-log, and docs). Items don't m
 
 ---
 
-## 13. Skill schema versioning beyond major-version bumps
+## 13. Skill schema versioning beyond major-version bumps (PARTIALLY IMPLEMENTED 2026-05-05)
 
 **What:** Right now `schema_version` is an integer. We don't have a migration framework, deprecation policy, or backward-compat guarantees.
 
-**Why deferred:** v0 has one schema version. Bridges to cross when we get there.
+**Status:** Refusal-on-unknown-version is now hard. `mcp/src/registry.ts` and `backend/src/routes/lookup.ts` both define `SUPPORTED_SCHEMA_VERSION = 1`. Either layer reading a `shortcuts.json` with `schema_version > 1` returns a clear error pointing the operator at the upgrade path (rebuild MCP / redeploy backend) instead of silently mis-interpreting newer fields. Bumping the constant is now a required step in any v2-introducing PR.
 
-**Trigger to pick up:** First breaking schema change.
+**Still parked:**
+- Multi-version coexistence: serving v1 and v2 specs from the same backend. Today both sides assume a single supported major.
+- Migration framework: a script that rewrites v1 JSON to v2 shape in-place during a major bump.
+- Deprecation policy: when an old schema version is allowed to keep working vs. is force-rejected.
 
-**Placeholder behavior:** All registry files declare `schema_version: 1`. The MCP refuses to load skills with an unknown major version and asks the user to upgrade.
+**Trigger to pick up the rest:** First proposed breaking schema change. The decision document for that change should specify which of the still-parked pieces it requires.
 
 ---
 

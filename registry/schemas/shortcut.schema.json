@@ -83,7 +83,12 @@
           "type": "string",
           "enum": ["safe", "destructive", "financial", "external_communication"],
           "default": "safe",
-          "description": "Parking-lot item 3: optional risk classification. Use seed skill should pause for confirmation on non-safe values (informal in v0)."
+          "description": "Parking-lot item 3: optional risk classification. Use seed skill pauses for confirmation on non-safe values."
+        },
+        "locale": {
+          "type": "string",
+          "pattern": "^[a-z]{2,3}(-[A-Z]{2})?$",
+          "description": "Parking-lot item 11: optional BCP-47-style locale (e.g. \"en\", \"en-US\", \"fr-FR\", \"ja\"). Defaults to the meta.json locale if absent. Use this when authoring a locale-specific variant of an existing shortcut (different menu path, different keyboard shortcut). Matching at lookup time is exact-string in v0; hierarchical fallback (fr-CA → fr → en) is parking-lot 11 work."
         },
         "produces": { "$ref": "#/$defs/produces" },
         "metadata": { "$ref": "#/$defs/metadata" }

@@ -34,6 +34,11 @@ const STOPWORDS = new Set([
   "and", "or", "with", "is", "this", "that", "be", "as", "it",
 ]);
 
+/** Highest registry schema major version this backend understands. Bump
+ *  when introducing breaking changes (parking-lot 13). The endpoint refuses
+ *  to serve specs with a higher version rather than mis-interpreting them. */
+const SUPPORTED_SCHEMA_VERSION = 1;
+
 interface ShortcutMetadata {
   contributor_id: string;
   payment_destination: string | null;
@@ -90,6 +95,14 @@ export async function lookupRoute(app: FastifyInstance): Promise<void> {
     } catch (err) {
       req.log.error({ err, app_id }, "lookup: shortcuts.json read/parse failed");
       return reply.code(500).send({ error: "failed to read shortcuts" });
+    }
+
+    if (typeof file.schema_version !== "number" || file.schema_version > SUPPORTED_SCHEMA_VERSION) {
+      req.log.error({ app_id, schema_version: file.schema_version }, "lookup: unsupported schema_version on disk");
+      return reply.code(500).send({
+        error: "unsupported schema_version",
+        detail: `Backend understands up to schema_version ${SUPPORTED_SCHEMA_VERSION}; ${app_id}/shortcuts.json declares ${file.schema_version}. Backend redeploy needed.`,
+      });
     }
 
     let candidates = file.shortcuts;

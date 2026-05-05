@@ -73,6 +73,7 @@ A shortcut looks like:
 
 ### Optional fields
 
+- **`locale`** — BCP-47-style code (`en`, `en-US`, `fr-FR`, `ja`). Use only when authoring a locale-specific variant of an existing shortcut (different menu path, different keyboard shortcut on that locale's keyboard layout). Defaults to the app's `meta.locale` when absent. Lookup matches exact-string in v0; hierarchical fallback (e.g. `fr-CA` → `fr` → `en`) is parking-lot 11 work. Until that lands, encode the locale into the shortcut `id` for uniqueness (e.g. `open-file` for the en default, `open-file-fr` for the French variant) — `id` is unique within an app even when `locale` differs.
 - **`risk`** — `safe` (default), `destructive`, `financial`, `external_communication`. The use seed skill reads this in step 5 and pauses for confirmation before running anything other than `safe`. Pick the level for the *worst-case outcome*, not the typical case:
   - `destructive` — the action changes state in a way that's hard or impossible to reverse without explicit save/undo discipline. Examples: collapsing layers, discarding color information, closing a document with potential unsaved changes, deleting files. Saving to a path the user explicitly named is *not* destructive — they asked.
   - `financial` — the action moves money or commits a payment. Includes "send invoice," "checkout," "buy now."
@@ -134,7 +135,7 @@ Each shortcut must declare one verification. Pick the type that most reliably pr
 - **`interpret_check`** — pass post-action media (screenshot, audio) to a vision/audio model with a question; check the answer against an expected fragment. Use when the visible effect is real but AX doesn't capture it (e.g., zen mode hides chrome visually while the AX-tree presence barely changes), or when the change is too subtle/contextual for a deterministic rule.
 - **`dom_assertion`** — for browser / web targets. Out of scope for the VS Code seed; will appear in browser-app shortcuts later.
 
-Rule of thumb: prefer `ax_tree_assertion` or `file_check` when either fits. `screenshot_diff` is the right pick when AX can't capture a clear visible toggle. Fall back to `interpret_check` only when neither AX, filesystem, nor a pixel diff fits — interpret_check is more expensive (vision-model call) and less deterministic. Note: `screenshot_diff` in v0 is a byte-level approximation, not a true PNG-decoded pixel diff (parking-lot 5 still parks the proper decoder); it's accurate enough for "did anything change" but can produce false positives for "exactly N% changed."
+Rule of thumb: prefer `ax_tree_assertion` or `file_check` when either fits. `screenshot_diff` is the right pick when AX can't capture a clear visible toggle — the diff is a real PNG-decoded per-pixel comparison, so fine-grained ratios are meaningful. Fall back to `interpret_check` only when neither AX, filesystem, nor a pixel diff fits — interpret_check is more expensive (vision-model call) and less deterministic.
 
 ## Method choice
 
