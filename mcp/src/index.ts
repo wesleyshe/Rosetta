@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 // rosetta-mcp entry point.
 //
-// Sixteen tools, all wired in:
+// Nineteen tools, all wired in:
 //   Registry:          registry_list_apps, registry_lookup,
 //                      registry_report_execution, registry_submit,
-//                      registry_chain_state
+//                      registry_chain_state, registry_propose_finding,
+//                      registry_list_proposals, registry_submit_proposals
 //   App detection:     os_app_info, os_list_windows
 //   Computer control:  os_screenshot, os_action, os_read_ax_tree
 //   Verification:      verify, interpret
@@ -25,6 +26,7 @@ import {
 
 import { listApps, lookup, reportExecution, submitSpec } from "./registry.js";
 import { chainSet, chainGet, chainList } from "./chain.js";
+import { proposeFinding, listProposals, submitProposals } from "./proposals.js";
 import {
   appInfo,
   screenshot,
@@ -170,6 +172,69 @@ const tools = [
         },
       },
       required: ["op"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "registry_propose_finding",
+    description:
+      "Stash an ad-hoc discovery from use mode for later contribution. Use this when `registry_lookup` returned nothing for the user's intent (or every ranked shortcut failed) AND the agent figured out a working method on the fly via web research, manual exploration, or trial-and-error AND verification passed. The proposal lives at <config_dir>/proposals/{app_id}.json — no GitHub auth required (auth is deferred until the user agrees to submit). Idempotent on `shortcut_spec.id`. After proposing, ask the user in plain language whether they want to contribute it back to the registry; if yes, call `registry_submit_proposals`. (Conceptually `registry.propose_finding`.)",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        app_id: { type: "string", description: 'App identifier (e.g. "photoshop"). Must match an existing folder under registry/apps/.' },
+        shortcut_spec: {
+          type: "object",
+          description: "Full shortcut spec (matches registry/schemas/shortcut.schema.json). Must include `id`, `intent`, `actions`, `verification`, and the standard `metadata` fields. The discovered method should be one the agent has verified end-to-end on this machine.",
+          additionalProperties: true,
+        },
+        origin_intent: {
+          type: "string",
+          description: "The user's original natural-language intent that triggered the discovery (e.g. \"export this Photoshop layer as a transparent PNG\"). Surfaces in the contributor PR description so reviewers see the user-side context.",
+        },
+        verification_log: {
+          type: "array",
+          items: { type: "string" },
+          description: "Optional. Lines describing what was tried and how the working method was confirmed. Helps the LLM reviewer judge quality.",
+        },
+      },
+      required: ["app_id", "shortcut_spec", "origin_intent"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "registry_list_proposals",
+    description:
+      "List ad-hoc discovery proposals stashed locally for an app. By default returns only un-submitted proposals. Use to surface pending contributions when the user revisits the app, or to pick a subset to submit. (Conceptually `registry.list_proposals`.)",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        app_id: { type: "string" },
+        include_submitted: { type: "boolean", description: "Optional. When true, also return already-submitted proposals." },
+      },
+      required: ["app_id"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "registry_submit_proposals",
+    description:
+      "Submit ad-hoc discovery proposals to the registry. Calls the same backend `/submit` endpoint as `registry_submit` and `explore_submit_findings` (prompt-injection reviewer + GitHub PR auto-merge). Requires GitHub OAuth — pass `contributor_token` explicitly or set `ROSETTA_GITHUB_TOKEN` in the env. Without `proposal_ids`, submits ALL un-submitted proposals for the app; pass `proposal_ids` to submit a subset. Returns `{app_id, attempted_count, submitted_count, results, dry_run}`. (Conceptually `registry.submit_proposals`.)",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        app_id: { type: "string" },
+        proposal_ids: {
+          type: "array",
+          items: { type: "string" },
+          description: "Optional. Specific proposal_ids to submit. Without this, all un-submitted proposals are attempted.",
+        },
+        contributor_token: {
+          type: "string",
+          description: "Optional. GitHub OAuth token. Falls back to ROSETTA_GITHUB_TOKEN.",
+        },
+      },
+      required: ["app_id"],
       additionalProperties: false,
     },
   },
@@ -528,6 +593,32 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         } else {
           throw new Error(`registry_chain_state: unknown op "${op}". Expected "set" | "get" | "list".`);
         }
+        break;
+      }
+      case "registry_propose_finding": {
+        result = proposeFinding({
+          app_id: String(args.app_id ?? ""),
+          shortcut_spec: (args.shortcut_spec ?? {}) as Record<string, unknown>,
+          origin_intent: String(args.origin_intent ?? ""),
+          verification_log: Array.isArray(args.verification_log)
+            ? (args.verification_log as string[])
+            : undefined,
+        });
+        break;
+      }
+      case "registry_list_proposals": {
+        result = listProposals({
+          app_id: String(args.app_id ?? ""),
+          include_submitted: typeof args.include_submitted === "boolean" ? args.include_submitted : undefined,
+        });
+        break;
+      }
+      case "registry_submit_proposals": {
+        result = await submitProposals({
+          app_id: String(args.app_id ?? ""),
+          proposal_ids: Array.isArray(args.proposal_ids) ? (args.proposal_ids as string[]) : undefined,
+          contributor_token: typeof args.contributor_token === "string" ? args.contributor_token : undefined,
+        });
         break;
       }
       case "os_app_info": {

@@ -127,9 +127,9 @@ Rosetta's `os_screenshot` shells to `screencapture`, which usually works without
 
 ## Step 4: Verify the install
 
-In Claude Desktop, open a new chat and trigger the slash menu by typing `/`. Tools from the rosetta MCP appear with a `rosetta:` prefix. You should see 16:
+In Claude Desktop, open a new chat and trigger the slash menu by typing `/`. Tools from the rosetta MCP appear with a `rosetta:` prefix. You should see 19:
 
-- `rosetta:registry_list_apps`, `registry_lookup`, `registry_submit`, `registry_report_execution`, `registry_chain_state`
+- `rosetta:registry_list_apps`, `registry_lookup`, `registry_submit`, `registry_report_execution`, `registry_chain_state`, `registry_propose_finding`, `registry_list_proposals`, `registry_submit_proposals`
 - `rosetta:os_app_info`, `os_screenshot`, `os_action`, `os_list_windows`, `os_read_ax_tree`
 - `rosetta:verify`, `interpret`
 - `rosetta:explore_start_session`, `explore_save_finding`, `explore_budget_status`, `explore_submit_findings`

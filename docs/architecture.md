@@ -304,6 +304,9 @@ All tools live under one MCP server. TypeScript, packaged for `npx @rosetta-skil
 - `registry.get_workflow(app_id)` → the app's workflow.json (fetched directly from the Railway backend's static-asset endpoint; no DB join needed).
 - `registry.submit(skill_spec, github_token)` → calls the backend (`POST /submit`). Backend runs the agent reviewer (LLM prompt-injection check), and on pass auto-creates a branch, commits the spec, opens a PR, and auto-merges it. Returns the PR URL and merged commit SHA. No human review in v0.
 - `registry.report_execution({ shortcut_id, verification_result, error_class?, app_version, platform, install_id })` → calls the backend (`POST /report-execution`). Records the execution event in Postgres and triggers a rolling re-aggregation of the shortcut's stats. **No GitHub auth required.** The MCP includes its locally-minted `install_id` (a stable random UUID generated at first launch and stored in the MCP config) for sybil-resistance rate limiting. Called automatically by the use seed skill after each execution; the user does not see this happen.
+- `registry.propose_finding({ app_id, shortcut_spec, origin_intent, verification_log? })` → stash an ad-hoc discovery from use mode for later contribution. **No GitHub auth at this step.** Stored locally at `<config_dir>/proposals/{app_id}.json` (per-app file, atomic writes, schema-versioned). Idempotent on `shortcut_spec.id`. The use-skill protocol triggers this when (a) `registry.lookup` returned no shortcuts for the user's intent, OR (b) every ranked shortcut failed and the agent figured out a working method on the fly AND verification passed. After proposing, the agent asks the user whether to submit; auth is deferred until the user opts in.
+- `registry.list_proposals({ app_id, include_submitted? })` → list locally-stashed proposals for an app. Default returns un-submitted only.
+- `registry.submit_proposals({ app_id, proposal_ids?, contributor_token? })` → submits proposals via the same backend `/submit` endpoint as `registry.submit` and `explore.submit_findings` (prompt-injection reviewer + GitHub PR auto-merge). Requires GitHub OAuth. Without `proposal_ids`, attempts every un-submitted proposal for the app; pass `proposal_ids` to submit a subset.
 
 ### OS tools
 
@@ -446,10 +449,44 @@ task on a desktop application or website, follow this protocol:
     first retry once (and report that attempt too), then try the next-ranked
     shortcut, then attempt vision-based discovery using `os.screenshot()` +
     reasoning, then surface the failure to the user with a clear question.
-13. Report what you did and the verification result back to the user.
+13. **Ad-hoc discovery (optional, when registry has a gap).** Trigger
+    conditions: (a) `registry.lookup` in step 3 returned no shortcuts for the
+    user's intent, OR (b) every ranked shortcut failed verification through
+    step 12. If you can plausibly figure out a working method on the fly —
+    via your knowledge of the app, web research, the app's help menu / docs,
+    common keyboard shortcuts, or careful exploration of menus — try it.
+    Run the actions, then `verify(...)`. Only proceed if verification passes
+    (`passed: true` from a real verifier, or your yes/no judgment on a 9b
+    image, or the 9c fallback yes-answer). If it doesn't pass, drop the
+    discovery and fall through to step 14. If it does pass:
+    - 13a. Construct a complete shortcut spec for what you just did. It must
+      validate against `registry/schemas/shortcut.schema.json` — include
+      `id`, `intent`, `parameters`, `platforms`, `app_versions`, `method`,
+      `actions`, `verification`, and a `metadata` block with
+      `contributor_id`, `payment_destination: null`, `token_cost_estimate`,
+      `speed_estimate_ms`, and `submitted_at: null` (the backend overwrites
+      these on submit).
+    - 13b. Call `registry.propose_finding({ app_id, shortcut_spec,
+      origin_intent: <user's original intent>, verification_log: [...] })`
+      to stash it locally. No GitHub auth required at this step.
+    - 13c. Tell the user in plain language: "I figured out how to [X] —
+      that path isn't in the Rosetta registry yet. Want to contribute it
+      back so other agents can use it? (Requires a one-time GitHub login.)"
+      State the shortcut's intent and what verification confirmed.
+    - 13d. If the user says yes AND `ROSETTA_GITHUB_TOKEN` is set (or they
+      provide one), call `registry.submit_proposals({ app_id })`. If they
+      say yes but no token is configured, point them to
+      `https://<backend>/auth/github` to obtain one and tell them to
+      re-invoke later via "submit my pending Rosetta proposals". If they
+      say no, leave the proposal stashed locally — they can submit later.
+    - 13e. Apply this branch at most once per user request, and only when
+      verification cleanly passed. A finicky discovery that needed many
+      retries or user prompts is a signal that the shortcut isn't robust
+      enough to contribute; skip the propose call.
+14. Report what you did and the verification result back to the user.
 
-Never invent shortcuts not in the registry. If no shortcut matches, say so and
-suggest the user run the explore skill first.
+Never invent shortcuts not in the registry without going through step 13's
+discovery + verification + propose flow.
 ```
 
 ### Explore skill
