@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "app_id": "rmv-massachusetts",
+  "open": [
+    { "type": "open_app", "platform_specific": true }
+  ],
+  "default_dispatch_strategy": [
+    "menu_navigation",
+    "shortcut_lookup",
+    "vision_fallback"
+  ],
+  "verification_default": "interpret_check",
+  "failure_recovery": [
+    "retry_same_shortcut_once",
+    "wait_for_idle",
+    "fallback_to_alternative_method",
+    "escalate_to_explorer",
+    "surface_to_user"
+  ],
+  "pre_step": []
+}

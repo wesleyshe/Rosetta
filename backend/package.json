@@ -15,6 +15,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate resolve --applied 20260505_init 2>/dev/null; prisma migrate deploy",
+    "seed:demo-stats": "tsx scripts/seed-demo-stats.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

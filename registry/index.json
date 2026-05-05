@@ -2,20 +2,76 @@
   "schema_version": 1,
   "apps": [
     {
-      "id": "vscode",
-      "display_name": "Visual Studio Code",
-      "platforms": ["macos", "windows", "linux"],
-      "tracked_versions": ["1.85+"],
-      "skill_count": 8,
-      "last_updated": "2026-05-03"
-    },
-    {
       "id": "photoshop",
       "display_name": "Adobe Photoshop",
       "platforms": ["macos"],
       "tracked_versions": ["25+"],
       "skill_count": 42,
       "last_updated": "2026-05-04"
+    },
+    {
+      "id": "indesign",
+      "display_name": "Adobe InDesign",
+      "platforms": ["macos"],
+      "tracked_versions": ["19+"],
+      "skill_count": 700,
+      "last_updated": "2026-05-05"
+    },
+    {
+      "id": "final-cut-pro",
+      "display_name": "Final Cut Pro",
+      "platforms": ["macos"],
+      "tracked_versions": ["10.7+"],
+      "skill_count": 318,
+      "last_updated": "2026-05-05"
+    },
+    {
+      "id": "logic-pro",
+      "display_name": "Logic Pro",
+      "platforms": ["macos"],
+      "tracked_versions": ["11+"],
+      "skill_count": 640,
+      "last_updated": "2026-05-05"
+    },
+    {
+      "id": "davinci-resolve",
+      "display_name": "DaVinci Resolve",
+      "platforms": ["macos"],
+      "tracked_versions": ["19+"],
+      "skill_count": 612,
+      "last_updated": "2026-05-05"
+    },
+    {
+      "id": "autocad",
+      "display_name": "AutoCAD",
+      "platforms": ["macos"],
+      "tracked_versions": ["2024+"],
+      "skill_count": 720,
+      "last_updated": "2026-05-05"
+    },
+    {
+      "id": "rhino",
+      "display_name": "Rhino",
+      "platforms": ["macos"],
+      "tracked_versions": ["8+"],
+      "skill_count": 330,
+      "last_updated": "2026-05-05"
+    },
+    {
+      "id": "rmv-massachusetts",
+      "display_name": "Massachusetts RMV",
+      "platforms": ["macos"],
+      "tracked_versions": ["web"],
+      "skill_count": 380,
+      "last_updated": "2026-05-05"
+    },
+    {
+      "id": "irs",
+      "display_name": "IRS.gov",
+      "platforms": ["macos"],
+      "tracked_versions": ["web"],
+      "skill_count": 338,
+      "last_updated": "2026-05-05"
     }
   ]
 }
