@@ -73,7 +73,11 @@ A shortcut looks like:
 
 ### Optional fields
 
-- **`risk`** — `safe` (default), `destructive`, `financial`, `external_communication`. Hint to the use seed skill (parking-lot item 3).
+- **`risk`** — `safe` (default), `destructive`, `financial`, `external_communication`. The use seed skill reads this in step 5 and pauses for confirmation before running anything other than `safe`. Pick the level for the *worst-case outcome*, not the typical case:
+  - `destructive` — the action changes state in a way that's hard or impossible to reverse without explicit save/undo discipline. Examples: collapsing layers, discarding color information, closing a document with potential unsaved changes, deleting files. Saving to a path the user explicitly named is *not* destructive — they asked.
+  - `financial` — the action moves money or commits a payment. Includes "send invoice," "checkout," "buy now."
+  - `external_communication` — the action sends a message that's visible to people other than the user. Includes "post," "publish," "send DM," "tweet," "email."
+  - `safe` (or omit) — everything else. Pixels modified but easily undoable; selection state changes; tool switches; navigation; reads.
 
 ### Forbidden in `metadata`
 

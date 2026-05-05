@@ -30,15 +30,15 @@ Deferred items, **ranked by priority — top = highest priority**. The first ite
 
 ---
 
-## 3. Sensitive action gating (purchases, deletes, sends)
+## 3. Sensitive action gating (ACTIVATED 2026-05-04)
 
-**What:** Some shortcuts perform irreversible or high-stakes actions. We should require user confirmation for these.
+**What:** Some shortcuts perform irreversible or high-stakes actions. The use-skill pauses to confirm before running them.
 
-**Why deferred:** v0 is for power users who know what they're asking for. The chat LLM also tends to confirm before destructive actions.
+**Status:** Active in v0. The schema's `risk` field (`safe` default; `destructive`, `financial`, `external_communication`) gates step 5 of the use-skill protocol — anything other than `safe` triggers a plain-language confirmation before the shortcut's actions run. The agent treats the original user request as implicit consent when it explicitly named the destructive action. Photoshop seed shortcuts tagged: `convert-to-grayscale`, `merge-down`, `merge-visible`, `flatten-image`, `close-document`. `docs/skills.md` documents per-level guidance; the use-skill text is mirrored in `site/seed-skills/use.md` and `docs/architecture.md`.
 
-**Trigger to pick up:** First incident involving a destructive action, or before any non-power-user audience targeting.
+**What's still parked:** Sandboxing, signed-skill requirements, action-type allowlists per risk class, and contributor reputation are all part of parking-lot 6 (bad skills / prompt injection) and stay parked until the trigger fires there.
 
-**Placeholder behavior:** Shortcuts can declare `risk: "destructive" | "financial" | "external_communication" | "safe"` (default `safe`). The use-skill should be updated to pause and confirm before executing non-safe shortcuts. Currently informal.
+**Trigger to pick those up:** First incident involving a destructive action that the LLM gate failed to catch, or before targeting a non-power-user audience.
 
 ---
 

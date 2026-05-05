@@ -250,6 +250,7 @@
         "question": "Does the active document now appear in grayscale (no color visible in the canvas, and the document title or layers panel reflecting the Gray color mode)?",
         "expected": "yes"
       },
+      "risk": "destructive",
       "metadata": {
         "contributor_id": "seed",
         "payment_destination": null,
@@ -807,6 +808,7 @@
         "question": "Has the active layer been merged into the layer beneath it (the Layers panel now shows one fewer layer)?",
         "expected": "yes"
       },
+      "risk": "destructive",
       "metadata": {
         "contributor_id": "seed",
         "payment_destination": null,
@@ -830,6 +832,7 @@
         "question": "Have all previously-visible layers been combined into a single layer in the Layers panel (visible-layer count reduced to one)?",
         "expected": "yes"
       },
+      "risk": "destructive",
       "metadata": {
         "contributor_id": "seed",
         "payment_destination": null,
@@ -876,6 +879,7 @@
         "question": "Has the Layers panel collapsed to a single 'Background' layer (all previous layers merged and flattened)?",
         "expected": "yes"
       },
+      "risk": "destructive",
       "metadata": {
         "contributor_id": "seed",
         "payment_destination": null,
