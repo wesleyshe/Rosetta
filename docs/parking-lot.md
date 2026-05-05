@@ -14,7 +14,7 @@ Numbers are stable IDs (referenced by code, change-log, and docs). Items don't m
 | 4  | Cross-skill composition contracts                     | Implemented (2026-05-05)     |
 | 5  | screenshot_diff semantic refinements                  | Partially implemented (2026-05-04) |
 | 6  | Bad skills / prompt injection                         | Partially implemented (2026-05-02) |
-| 7  | Nixpacks injects secrets at build time                | Parked                       |
+| 7  | Nixpacks injects secrets at build time                | Implemented (2026-05-05)     |
 | 8  | Automated skill decay detection                       | Partially implemented (2026-05-02) |
 | 9  | Multi-window / multi-instance app handling            | Partially implemented (2026-05-05) |
 | 10 | Adversarial app vendors                               | Resolved — no engineering action |
@@ -109,20 +109,16 @@ Numbers are stable IDs (referenced by code, change-log, and docs). Items don't m
 
 ---
 
-## 7. Nixpacks injects secrets as Docker ARG/ENV at build time
+## 7. Nixpacks injects secrets as Docker ARG/ENV at build time (IMPLEMENTED 2026-05-05)
 
-**What:** Railway's Nixpacks builder bakes the project's environment variables (including ANTHROPIC_API_KEY and GITHUB_OAUTH_CLIENT_SECRET) into the Docker image as ARG and ENV directives. Build logs show this via `SecretsUsedInArgOrEnv` warnings. The resulting image layers contain plaintext secrets, extractable by anyone with image pull access.
+**What:** Railway's Nixpacks builder used to bake every project env var (including `ANTHROPIC_API_KEY` and `GITHUB_OAUTH_CLIENT_SECRET`) into image layers as ARG/ENV. Anyone with image-pull access could extract them.
 
-**Why deferred:** Railway's image registry is private to the deployer in practice. Acceptable risk while the project is single-operator. Becomes concerning if the image fans out (CI cache, multi-team setups, shared infrastructure).
+**Status:** Replaced Nixpacks with a hand-written multi-stage `Dockerfile` at the repo root. The build accepts **no** secrets — `prisma generate` and `tsc` (the only build-time work) don't need them, so they don't appear as ARGs. Runtime secrets are injected to the running container by Railway at deploy time, never landing in image layers. `railway.json` switched from `"builder": "NIXPACKS"` to `"builder": "DOCKERFILE"`.
 
-**Trigger to pick up:** When non-deployer parties gain image-pull access, or when Nixpacks adds first-class BuildKit `--secret` support and migration is straightforward. Or proactively before any production launch with sensitive customer data.
+**One-time cutover task for the operator:** rotate any secrets that lived in pre-cutover deployed images. The image layers from those deploys may still exist in Railway's registry until garbage-collected, and they contain the plaintext values. Rotate `ANTHROPIC_API_KEY`, `GITHUB_OAUTH_CLIENT_SECRET`, and (defensively) regenerate the GitHub OAuth Client Secret. Update Railway env vars to the new values and trigger a redeploy.
 
-**Placeholder behavior:** Continue using Railway env vars as-is. The warning is benign in the single-operator context.
-
-**When picked up:**
-- Check whether Nixpacks supports BuildKit secrets natively (`RUN --mount=type=secret,id=...`).
-- Or migrate to a custom Dockerfile with explicit `--mount=type=secret`, avoiding ARG/ENV for credentials entirely.
-- Rotate any secrets that have lived in deployed images.
+**Still parked (not started):**
+- BuildKit `--mount=type=secret` if a future build step actually needs a secret (e.g., a private npm registry token). Today nothing does.
 
 ---
 

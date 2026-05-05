@@ -1,0 +1,40 @@
+# Keep build context small + avoid copying secrets / build outputs into
+# the image. Mirrors .gitignore plus a few build-output additions.
+
+# Node / TypeScript
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+build/
+**/build/
+*.tsbuildinfo
+coverage/
+.npm/
+
+# Logs
+*.log
+
+# Env / secrets — must NEVER land in image layers.
+.env
+.env.*
+!.env.example
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.github/
+
+# Repo-only docs (not needed at runtime)
+docs/
+*.md
+!README.md
+
+# Local notes / scratch
+pitch_deck_script.md
+memory/

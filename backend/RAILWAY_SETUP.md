@@ -6,8 +6,9 @@ One-page user guide for provisioning the Rosetta backend on [Railway](https://ra
 
 1. Sign in at https://railway.com.
 2. **New Project → Deploy from GitHub repo**, pick `wesleyshe/Rosetta`.
-3. **Leave Root Directory empty** (or explicitly set to repo root). Do NOT set it to `backend/`. Railway uses the **root-level** `railway.json` and `package.json` to drive the build — those scripts delegate into `backend/` (`cd backend && npm ci && npm run build`, then `cd backend && npm run prisma:deploy && npm run start`). This is deliberate: backend's runtime needs `site/` and `registry/` as siblings of `backend/dist/`, so the whole repo has to be in the deploy image, not just `backend/`.
-4. Wait for the first deploy. It will fail until step 2 is done — that's expected; Prisma needs `DATABASE_URL`.
+3. **Leave Root Directory empty** (or explicitly set to repo root). Do NOT set it to `backend/`. Railway reads the repo-root `railway.json` to find the Dockerfile, and the build context spans the whole repo so `site/` and `registry/` end up in the runtime image as siblings of `backend/dist/`.
+4. As of 2026-05-05 the build uses a hand-written `Dockerfile` (parking-lot 7) instead of Nixpacks. The Dockerfile accepts NO secrets at build time — Nixpacks previously baked every project env var into image layers as ARG/ENV directives. Runtime secrets are injected to the running container at deploy time, the way they should be.
+5. Wait for the first deploy. It will fail until step 2 is done — that's expected; Prisma needs `DATABASE_URL`.
 
 ## 2. Add the Postgres add-on
 
@@ -54,6 +55,8 @@ Local writes go to the same Postgres the deployed backend uses. Acceptable in v0
 ## 5. Auto-deploy on push to `main`
 
 Already on by default when Railway is connected to GitHub. Verify under the backend service's **Settings → Source → Auto Deploy → Branches → `main`**. Every merge to `main` triggers a redeploy in about a minute.
+
+After the 2026-05-05 Dockerfile cutover, the first deploy on a fresh Railway service may still show the old Nixpacks build cached. Clear it with **Settings → Source → Redeploy** if you see Nixpacks in the build logs after the cutover. Builds should now show `[+] Building ...` (BuildKit) and zero `SecretsUsedInArgOrEnv` warnings.
 
 ## 6. Smoke check
 
