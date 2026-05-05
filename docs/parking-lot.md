@@ -2,6 +2,31 @@
 
 Deferred items, **ranked by priority — top = highest priority**. The first item is the next thing to revisit when we have parking-lot bandwidth. When adding new items, slot in by priority and renumber the list. Each entry: what it is, why it's deferred, what would trigger us to pick it back up, and the current placeholder behavior.
 
+## Status overview
+
+Numbers are stable IDs (referenced by code, change-log, and docs). Items don't move when their status changes — the marker is updated in place.
+
+| #  | Item                                                  | Status                       |
+|----|-------------------------------------------------------|------------------------------|
+| 1  | Workflow plurality                                    | Parked                       |
+| 2  | Website UI / UX design                                | Implemented (2026-05-03)     |
+| 3  | Sensitive action gating                               | Implemented (2026-05-04)     |
+| 4  | Cross-skill composition contracts                     | Partially implemented (2026-05-03) |
+| 5  | screenshot_diff semantic refinements                  | Partially implemented (2026-05-04) |
+| 6  | Bad skills / prompt injection                         | Partially implemented (2026-05-02) |
+| 7  | Nixpacks injects secrets at build time                | Parked                       |
+| 8  | Automated skill decay detection                       | Partially implemented (2026-05-02) |
+| 9  | Multi-window / multi-instance app handling            | Parked                       |
+| 10 | Adversarial app vendors                               | Parked                       |
+| 11 | Internationalization / locale variation               | Parked                       |
+| 12 | Graduate to Prisma migrations                         | Parked                       |
+| 13 | Skill schema versioning beyond major-version bumps    | Parked                       |
+| 14 | Web chat client support                               | Parked                       |
+| 15 | Payment / contributor reward economy                  | Parked                       |
+| 16 | Smaller screenshots for vision-based verification     | Partially implemented (2026-05-04) |
+
+"Implemented" = the original deferral is fully resolved. "Partially implemented" = some sub-pieces shipped; the rest are documented under **Still parked** in that item's body. "Parked" = not started in v0.
+
 ## 1. Workflow plurality / competition between workflows per app
 
 **What:** workflow.json is currently singular per app — exactly one generic workflow describes how to dispatch and verify shortcuts for that app. This contradicts the "let competition drive quality" principle that already governs shortcuts (multiple shortcuts can match one intent; agent picks by reliability_score; we don't deduplicate). The same principle should apply to workflows: multiple plausible generic-workflow approaches per app should compete on empirical hit-rate. For an app like Photoshop, examples include: canvas-region screenshot vs full-screen, AX-only vs screenshot-based, interleaved vs end-only verification. Different approaches have different trade-offs (speed, robustness, UI-resistance). The registry should let users surface the empirically-best one rather than locking in a maintainer's guess.
@@ -16,21 +41,15 @@ Deferred items, **ranked by priority — top = highest priority**. The first ite
 
 ---
 
-## 2. Website UI / UX design (landing + per-app database pages)
+## 2. Website UI / UX design (IMPLEMENTED 2026-05-03)
 
-**What:** A real design pass for the human-facing landing page and the per-app database pages. Phase 2 currently produces functional HTML with minimal CSS but makes no decisions about: visual anchor (typography, color, spacing scale), reliability-score visualization, shortcut-list layout (table vs cards vs list), sort/filter behavior, cold-start indicators, agent_primer placement on the page, mobile responsiveness, or copy tone. The pages will be written and look "however the agent makes them look" without explicit design intent.
+**What:** A real design pass for the human-facing landing page and the per-app database pages — typography, color, spacing scale, reliability-score visualization, shortcut-list layout, cold-start indicators, mobile responsiveness, copy tone.
 
-**Why deferred:** Schemas, MCP, backend, and seed skills are all higher-leverage. Landing-page polish before the product works is a classic ordering mistake. The user explicitly chose "think about it later" on 2026-05-03 after a design discussion.
-
-**Trigger to pick up:** Before the page is shown to anyone outside the team. At the latest, before the Phase 7 soft launch (HN, Reddit, etc.). Earlier is better — ideally between Phase 6b shipping and Phase 7 starting, when the backend exists and there's real data (a few VS Code shortcuts plus stats) to design around. Earliest viable trigger: as soon as Phase 2 begins, draft `docs/site-design.md` first.
-
-**Placeholder behavior:** Phase 2 will produce vanilla HTML/CSS that's functional but undesigned. Reliability scores will be rendered as plain numbers. Shortcuts will list in document order. Mobile behavior will be whatever vanilla HTML gives you. Acceptable for internal review and for showing to a small audience; not acceptable for soft launch.
-
-**When picked up, write:** `docs/site-design.md` (50-100 lines) covering landing-page goal, visual anchor, per-app-page layout decisions, copy tone. Then revisit Phase 2's substeps and add design-implementation tasks. Don't drag into Figma-mockup-iteration territory; the goal is "intentional," not "designed-by-committee."
+**Status:** Done. `docs/site-design.md` (50-100 lines) covers landing-page goal, visual anchor, per-app-page layout decisions, copy tone. Implementation lives in `site/index.html`, `site/app.html`, `site/style.css`. The per-app page reads live ShortcutStats from `/lookup` and renders reliability cells with a warm/cold-start split.
 
 ---
 
-## 3. Sensitive action gating (ACTIVATED 2026-05-04)
+## 3. Sensitive action gating (IMPLEMENTED 2026-05-04)
 
 **What:** Some shortcuts perform irreversible or high-stakes actions. The use-skill pauses to confirm before running them.
 
@@ -42,7 +61,7 @@ Deferred items, **ranked by priority — top = highest priority**. The first ite
 
 ---
 
-## 4. Cross-skill composition contracts (PARTIALLY ACTIVATED 2026-05-03)
+## 4. Cross-skill composition contracts (PARTIALLY IMPLEMENTED 2026-05-03)
 
 **What:** When the user asks "increase brightness, add a dog, crop the photo," the agent chains three shortcuts. There's no formal contract for how shortcut outputs feed into shortcut inputs (e.g., "this shortcut produces a selection region that the next one consumes").
 
@@ -56,7 +75,7 @@ Deferred items, **ranked by priority — top = highest priority**. The first ite
 
 ---
 
-## 5. screenshot_diff semantic refinements (PARTIALLY ACTIVATED 2026-05-04)
+## 5. screenshot_diff semantic refinements (PARTIALLY IMPLEMENTED 2026-05-04)
 
 **What:** The `screenshot_diff` verification type originally expressed only `max_pixel_diff_ratio` ("verify nothing changed beyond N% of pixels"). The inverse direction ("verify something DID change"), region-aware assertions, and a true PNG-decoded pixel diff were all parked.
 
@@ -71,7 +90,7 @@ Deferred items, **ranked by priority — top = highest priority**. The first ite
 
 ---
 
-## 6. Bad skills / prompt injection (PARTIALLY ACTIVATED 2026-05-02)
+## 6. Bad skills / prompt injection (PARTIALLY IMPLEMENTED 2026-05-02)
 
 **What:** A contributed skill might be subtly wrong, wasteful, destructive, or contain prompt injection that hijacks the agent's behavior at execution time. Examples: a skill that says "delete file X" but really deletes a different file due to a bad selector; a skill whose `intent` description is "open file" but whose `actions` are "send password to evil.com"; a skill whose verification rule is satisfied by something other than the intended outcome.
 
@@ -104,7 +123,7 @@ Deferred items, **ranked by priority — top = highest priority**. The first ite
 
 ---
 
-## 8. Automated skill decay detection (PARTIALLY ACTIVATED 2026-05-02)
+## 8. Automated skill decay detection (PARTIALLY IMPLEMENTED 2026-05-02)
 
 **What:** A skill that worked when contributed may stop working when the app updates. Currently we have no first-party way to test this proactively.
 
@@ -207,7 +226,7 @@ Deferred items, **ranked by priority — top = highest priority**. The first ite
 
 ---
 
-## 16. Smaller screenshots for vision-based verification (PARTIALLY ACTIVATED 2026-05-04)
+## 16. Smaller screenshots for vision-based verification (PARTIALLY IMPLEMENTED 2026-05-04)
 
 **What:** `os_screenshot` accepts a `region: {x, y, width, height}` parameter, but the agent has no automated way to figure out useful regions. Full-screen captures on retina displays land at 5 to 10 MB, which inflates vision-model token cost on every `interpret_check` verification.
 
