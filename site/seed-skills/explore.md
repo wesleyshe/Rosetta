@@ -25,7 +25,7 @@ protocol:
    - Web search for official documentation, keyboard shortcut cheat sheets,
      forum threads, and changelogs.
    - The app's own help system, command palette, or settings menus.
-   - `os.screenshot()` to inspect UI state visually.
+   - `os.screenshot()` to inspect UI state visually. Pass `{ region: "frontmost_window" }` when only the target app's window matters — smaller payload, less noise from menubar / desktop / other apps.
    - `os.read_ax_tree()` to inspect accessibility structure.
    - Manual menu walking to capture shortcuts shown next to menu items.
    - Official keyboard reference cards from the vendor's site.

@@ -308,7 +308,7 @@ All tools live under one MCP server. TypeScript, packaged for `npx @rosetta-skil
 ### OS tools
 
 - `os.app_info(app_name)` → `{ installed: bool, version, platform, bundle_id?, pid?, error? }`. The `error` field is populated when the platform probe is stubbed (Windows / Linux in v0) or fails non-fatally (e.g., `mdfind` missing or returning nothing).
-- `os.screenshot({ region?, format? })` → returns a text block (`{path, bytes, region?, format}`) plus an MCP image content block carrying the actual image bytes via the multimodal channel. Default `format` is `"jpg"` (smaller payloads keep us under Claude Desktop's tool-result text-content limit). Pass `format: "png"` for pixel-stable comparisons (screenshot_diff verification).
+- `os.screenshot({ region?, format? })` → returns a text block (`{path, bytes, region?, format}`) plus an MCP image content block carrying the actual image bytes via the multimodal channel. `region` accepts an explicit `{x, y, width, height}` rect OR the string `"frontmost_window"` (resolves the frontmost app's frontmost window via osascript at capture time, falls through to full-screen if no window). Default `format` is `"jpg"` (smaller payloads keep us under Claude Desktop's tool-result text-content limit). Pass `format: "png"` for pixel-stable comparisons (screenshot_diff verification).
 - `os.read_ax_tree(window?)` → returns accessibility tree as structured JSON
 - `os.action(spec)` — discriminated union:
   - `{ type: "key", key: "enter" }`
@@ -480,7 +480,7 @@ protocol:
    - Web search for official documentation, keyboard shortcut cheat sheets,
      forum threads, and changelogs.
    - The app's own help system, command palette, or settings menus.
-   - `os.screenshot()` to inspect UI state visually.
+   - `os.screenshot()` to inspect UI state visually. Pass `{ region: "frontmost_window" }` when only the target app's window matters — smaller payload, less noise from menubar / desktop / other apps.
    - `os.read_ax_tree()` to inspect accessibility structure.
    - Manual menu walking to capture shortcuts shown next to menu items.
    - Official keyboard reference cards from the vendor's site.

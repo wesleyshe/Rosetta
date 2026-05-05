@@ -162,21 +162,30 @@ const tools = [
   {
     name: "os_screenshot",
     description:
-      "Capture a screenshot of the full screen or an optional rectangular region. Returns a text block with `{path, bytes, region?, format}` AND a separate MCP image content block carrying the actual image bytes via the multimodal channel — the agent sees the image directly with its native vision (no base64 in JSON). Supports `format: \"jpg\"` (default, smaller) or `format: \"png\"` (use for pixel-stable comparisons such as screenshot_diff verification). macOS only in v0 (uses `screencapture`); Windows/Linux throw. (Conceptually `os.screenshot`.)",
+      "Capture a screenshot of the full screen, an explicit rectangle, or the frontmost app's frontmost window. Returns a text block with `{path, bytes, region?, format}` AND a separate MCP image content block carrying the actual image bytes via the multimodal channel — the agent sees the image directly with its native vision (no base64 in JSON). `region` accepts an explicit `{x, y, width, height}` rect OR the string `\"frontmost_window\"` (resolved via osascript at capture time; falls through to full-screen if the frontmost app has no windows). Supports `format: \"jpg\"` (default, smaller) or `format: \"png\"` (use for pixel-stable comparisons such as screenshot_diff verification). macOS only in v0 (uses `screencapture`); Windows/Linux throw. (Conceptually `os.screenshot`.)",
     inputSchema: {
       type: "object" as const,
       properties: {
         region: {
-          type: "object",
-          description: "Optional. Capture only this rectangle (logical pixels).",
-          properties: {
-            x: { type: "number" },
-            y: { type: "number" },
-            width: { type: "number" },
-            height: { type: "number" },
-          },
-          required: ["x", "y", "width", "height"],
-          additionalProperties: false,
+          oneOf: [
+            {
+              type: "object",
+              description: "Explicit rectangle in logical pixels.",
+              properties: {
+                x: { type: "number" },
+                y: { type: "number" },
+                width: { type: "number" },
+                height: { type: "number" },
+              },
+              required: ["x", "y", "width", "height"],
+              additionalProperties: false,
+            },
+            {
+              type: "string",
+              const: "frontmost_window",
+              description: "Capture the frontmost app's frontmost window. Resolved via osascript at capture time. If the app has no windows, falls through to full-screen capture.",
+            },
+          ],
         },
         format: {
           type: "string",
@@ -448,7 +457,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         break;
       }
       case "os_screenshot": {
-        const region = args.region as ScreenshotRegion | undefined;
+        const region = args.region as ScreenshotRegion | "frontmost_window" | undefined;
         const format = args.format === "png" ? "png" : "jpg";
         const shot = await screenshot({ region, format });
         const { base64, ...metadata } = shot;

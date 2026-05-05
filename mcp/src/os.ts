@@ -221,8 +221,13 @@ export interface ScreenshotRegion {
   height: number;
 }
 
+export type ScreenshotRegionInput = ScreenshotRegion | "frontmost_window";
+
 export interface ScreenshotOptions {
-  region?: ScreenshotRegion;
+  /** Either an explicit rect, or the string `"frontmost_window"` to
+   *  resolve the frontmost app's frontmost window via osascript at
+   *  capture time. */
+  region?: ScreenshotRegionInput;
   /** Image format. Default "jpg" — smaller payloads keep us under the
    *  Claude Desktop tool-result size limit. Use "png" only for pixel-stable
    *  comparisons (screenshot_diff verification). */
@@ -235,6 +240,31 @@ export interface ScreenshotResult {
   bytes: number;
   region?: ScreenshotRegion;
   format: "png" | "jpg";
+}
+
+/** Resolve `"frontmost_window"` to an absolute rect via osascript. Returns
+ *  null if the frontmost app has no windows; the caller should fall back to
+ *  full-screen capture in that case. */
+async function resolveFrontmostWindowRegion(): Promise<ScreenshotRegion | null> {
+  const script =
+    'tell application "System Events"\n' +
+    "  set frontApp to first application process whose frontmost is true\n" +
+    "  tell frontApp\n" +
+    "    if (count of windows) is 0 then return \"\"\n" +
+    "    set frontWin to first window\n" +
+    "    set p to position of frontWin\n" +
+    "    set s to size of frontWin\n" +
+    "    return (item 1 of p as string) & \",\" & (item 2 of p as string) & \",\" & (item 1 of s as string) & \",\" & (item 2 of s as string)\n" +
+    "  end tell\n" +
+    "end tell";
+  const { stdout } = await execFileAsync("osascript", ["-e", script], { timeout: 3000 });
+  const out = stdout.trim();
+  if (!out) return null;
+  const parts = out.split(",").map((p) => Number(p.trim()));
+  if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) return null;
+  const [x, y, width, height] = parts;
+  if (width <= 0 || height <= 0) return null;
+  return { x, y, width, height };
 }
 
 export async function screenshot(opts: ScreenshotOptions = {}): Promise<ScreenshotResult> {
@@ -254,9 +284,19 @@ export async function screenshot(opts: ScreenshotOptions = {}): Promise<Screensh
   // but are still recompressed at the lower quality.
   const MAX_DIMENSION = 1600;
   const JPEG_QUALITY = 60;
+
+  let resolvedRegion: ScreenshotRegion | undefined;
+  if (opts.region === "frontmost_window") {
+    const win = await resolveFrontmostWindowRegion();
+    if (win) resolvedRegion = win;
+    // If null (no windows), fall through to full-screen.
+  } else if (opts.region) {
+    resolvedRegion = opts.region;
+  }
+
   const args = ["-x", "-t", ext];
-  if (opts.region) {
-    args.push("-R", `${opts.region.x},${opts.region.y},${opts.region.width},${opts.region.height}`);
+  if (resolvedRegion) {
+    args.push("-R", `${resolvedRegion.x},${resolvedRegion.y},${resolvedRegion.width},${resolvedRegion.height}`);
   }
   args.push(path);
   try {
@@ -285,7 +325,7 @@ export async function screenshot(opts: ScreenshotOptions = {}): Promise<Screensh
     }
   }
   const buf = readFileSync(path);
-  return { path, base64: buf.toString("base64"), bytes: buf.length, region: opts.region, format };
+  return { path, base64: buf.toString("base64"), bytes: buf.length, region: resolvedRegion, format };
 }
 
 // ===================== action (Phase 4) =====================
